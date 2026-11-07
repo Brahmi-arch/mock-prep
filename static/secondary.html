@@ -1,0 +1,8 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Secondary camera · Mock Prep</title><link rel="stylesheet" href="/static/style.css"/></head><body class="secondary-body">
+<main class="secondary-card"><div class="brand"><span class="brand-mark">✳</span><div class="brand-name">mock<span class="brand-highlight">prep</span><small>SECOND CAMERA</small></div></div>
+<h2>Connect your phone camera</h2><p class="muted">This adds a second viewing angle to your own practice recording. Nothing starts until you grant permission. You can disconnect whenever you want.</p>
+<video id="preview" autoplay muted playsinline style="width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:18px;background:#123d30;margin:20px 0"></video>
+<div id="status" class="info-banner">Ready to connect. Use HTTPS when opening on your phone.</div>
+<button id="connect" class="btn primary full">Allow camera & connect</button><button id="disconnect" class="btn ghost full" disabled>Disconnect</button>
+<p class="fine-print">This is live WebRTC peer-to-peer video; the host's session recording can include your feed. Connection requires a compatible network, and some networks need TURN configuration.</p>
+</main><script type="module" src="/static/secondary.js"></script></body></html>

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Mock Preparation AI — Studio</title><link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/static/style.css" />
+</head><body>
+<div id="auth" class="auth-backdrop hidden">
+  <section class="auth-card" aria-label="Sign in">
+    <div class="auth-brand"><span class="brand-mark">✳</span><span>mock<span class="brand-highlight">prep</span><small>AI INTERVIEW STUDIO</small></span></div>
+    <h1 id="authTitle">Welcome back.</h1><p class="muted">Your own private space to practice and improve.</p>
+    <form id="authForm" autocomplete="on">
+      <label id="nameGroup" class="hidden">Your name<input id="authName" autocomplete="name" placeholder="Your name" /></label>
+      <label>Email<input id="authEmail" type="email" required autocomplete="email" placeholder="you@example.com" /></label>
+      <label>Password<input id="authPassword" type="password" required minlength="8" autocomplete="current-password" placeholder="At least 8 characters" /></label>
+      <button class="btn primary full" id="authSubmit" type="submit">Sign in <span>↗</span></button>
+    </form>
+    <button id="switchAuth" class="auth-switch" type="button">New here? <strong>Create an account</strong></button>
+    <p class="auth-privacy">🔒 Your sessions are stored on this device's local server. Camera access always requires permission.</p>
+  </section>
+</div>
+<div class="shell" id="appShell">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark">✳</div><div class="brand-name">mock<span class="brand-highlight">prep</span><small>AI INTERVIEW STUDIO</small></div></div>
+    <div class="nav-label">WORKSPACE</div>
+    <nav class="nav" aria-label="Main navigation">
+      <button class="nav-item active" data-view="dashboard"><span class="nav-icon">▦</span> Dashboard</button>
+      <button class="nav-item" data-view="prepare"><span class="nav-icon">✧</span> New practice</button>
+      <button class="nav-item" data-view="history"><span class="nav-icon">◷</span> Sessions & progress</button>
+      <button class="nav-item" data-view="privacy"><span class="nav-icon">♧</span> Privacy & settings</button>
+    </nav>
+    <div class="sidebar-bottom"><div class="ai-state"><span id="aiDot" class="status-dot"></span><div><strong id="aiStatus">Checking AI…</strong><small id="aiModel">Gemini connection</small></div></div><div class="support-box"><span>✦</span><strong>Grow with every attempt.</strong><p>Practice your stories. See your progress. Build confidence.</p></div><button id="signOut" class="signout">↪ &nbsp; Sign out</button></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar"><div class="breadcrumbs">WORKSPACE <span>/</span> <strong id="breadcrumb">Dashboard</strong></div><div class="top-actions"><span class="top-private">◉ &nbsp;Local-first practice</span><div class="avatar" id="avatar">U</div><span id="userName">Student</span></div></header>
+    <main id="view" tabindex="-1"></main>
+  </div>
+</div>
+<div id="toast" class="toast hidden" role="status"></div>
+<video id="cameraSource" muted playsinline autoplay class="source-video"></video>
+<video id="screenSource" muted playsinline autoplay class="source-video"></video>
+<video id="secondSource" muted playsinline autoplay class="source-video"></video>
+<video id="remoteSource" muted playsinline autoplay class="source-video"></video>
+<canvas id="recordCanvas" width="1280" height="720" class="source-video"></canvas>
+<script type="module" src="/static/app.js"></script>
+</body></html>
