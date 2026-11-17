@@ -1,47 +1,139 @@
 <!doctype html>
-<html lang="en"><head>
-<meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Mock Preparation AI — Studio</title><link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="/static/style.css" />
-</head><body>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MockPrep — AI Interview Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css?v=3" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
 <div id="auth" class="auth-backdrop hidden">
   <section class="auth-card" aria-label="Sign in">
-    <div class="auth-brand"><span class="brand-mark">✳</span><span>mock<span class="brand-highlight">prep</span><small>AI INTERVIEW STUDIO</small></span></div>
-    <h1 id="authTitle">Welcome back.</h1><p class="muted">Your own private space to practice and improve.</p>
-    <form id="authForm" autocomplete="on">
-      <label id="nameGroup" class="hidden">Your name<input id="authName" autocomplete="name" placeholder="Your name" /></label>
-      <label>Email<input id="authEmail" type="email" required autocomplete="email" placeholder="you@example.com" /></label>
-      <label>Password<input id="authPassword" type="password" required minlength="8" autocomplete="current-password" placeholder="At least 8 characters" /></label>
-      <button class="btn primary full" id="authSubmit" type="submit">Sign in <span>↗</span></button>
-    </form>
-    <button id="switchAuth" class="auth-switch" type="button">New here? <strong>Create an account</strong></button>
-    <p class="auth-privacy">🔒 Your sessions are stored on this device's local server. Camera access always requires permission.</p>
+    <div class="auth-brand">
+      <div class="brand-symbol">
+        <svg width="18" height="18" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M1.5 3C1.5 2.17157 2.17157 1.5 3 1.5H12C12.8284 1.5 13.5 2.17157 13.5 3V12C13.5 12.8284 12.8284 13.5 12 13.5H3C2.17157 13.5 1.5 12.8284 1.5 12V3ZM3 2.5C2.72386 2.5 2.5 2.72386 2.5 3V12C2.5 12.2761 2.72386 12.5 3 12.5H12C12.2761 12.5 12.5 12.2761 12.5 12V3C12.5 2.72386 12.2761 2.5 12 2.5H3Z" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"/>
+          <path d="M4.5 7.5H10.5M7.5 4.5V10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-title">MockPrep</div>
+        <div class="brand-sub">STUDIO</div>
+      </div>
+    </div>
+    
+    <h1 id="authTitle" class="auth-heading">Sign in to your account</h1>
+    <p class="auth-desc">Practice UI/UX design mock interviews with real-time AI evaluation and local-first storage.</p>
+
+    <div id="supabaseWarning" class="info-banner warning hidden">
+      <strong>Supabase configuration required</strong>
+      <span>Set <code>SUPABASE_URL</code> and <code>SUPABASE_PUBLISHABLE_KEY</code> in your <code>.env</code> file.</span>
+    </div>
+
+    <div class="auth-actions">
+      <button class="btn-google full" id="googleSignInBtn" type="button">
+        <svg class="google-icon" viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg">
+          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+        </svg>
+        <span>Continue with Google</span>
+      </button>
+    </div>
+
+    <p class="auth-footer-note">Authenticated securely via Supabase Auth. Practice recordings are kept locally on your machine.</p>
   </section>
 </div>
+
 <div class="shell" id="appShell">
   <aside class="sidebar">
-    <div class="brand"><div class="brand-mark">✳</div><div class="brand-name">mock<span class="brand-highlight">prep</span><small>AI INTERVIEW STUDIO</small></div></div>
-    <div class="nav-label">WORKSPACE</div>
+    <div class="brand">
+      <div class="brand-symbol">
+        <svg width="16" height="16" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M1.5 3C1.5 2.17157 2.17157 1.5 3 1.5H12C12.8284 1.5 13.5 2.17157 13.5 3V12C13.5 12.8284 12.8284 13.5 12 13.5H3C2.17157 13.5 1.5 12.8284 1.5 12V3ZM3 2.5C2.72386 2.5 2.5 2.72386 2.5 3V12C2.5 12.2761 2.72386 12.5 3 12.5H12C12.2761 12.5 12.5 12.2761 12.5 12V3C12.5 2.72386 12.2761 2.5 12 2.5H3Z" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"/>
+          <path d="M4.5 7.5H10.5M7.5 4.5V10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-title">MockPrep</div>
+        <div class="brand-sub">STUDIO</div>
+      </div>
+    </div>
+
+    <div class="nav-section-label">WORKSPACE</div>
     <nav class="nav" aria-label="Main navigation">
-      <button class="nav-item active" data-view="dashboard"><span class="nav-icon">▦</span> Dashboard</button>
-      <button class="nav-item" data-view="prepare"><span class="nav-icon">✧</span> New practice</button>
-      <button class="nav-item" data-view="history"><span class="nav-icon">◷</span> Sessions & progress</button>
-      <button class="nav-item" data-view="privacy"><span class="nav-icon">♧</span> Privacy & settings</button>
+      <button class="nav-item active" data-view="dashboard">
+        <span class="nav-icon">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1.5 3C1.5 2.17157 2.17157 1.5 3 1.5H6C6.82843 1.5 7.5 2.17157 7.5 3V6C7.5 6.82843 6.82843 7.5 6 7.5H3C2.17157 7.5 1.5 6.82843 1.5 6V3ZM3 2.5C2.72386 2.5 2.5 2.72386 2.5 3V6C2.5 6.27614 2.72386 6.5 3 6.5H6C6.27614 6.5 6.5 6.27614 6.5 6V3C6.5 2.72386 6.27614 2.5 6 2.5H3ZM1.5 9C1.5 8.17157 2.17157 7.5 3 7.5H6C6.82843 7.5 7.5 8.17157 7.5 9V12C7.5 12.8284 6.82843 13.5 6 13.5H3C2.17157 13.5 1.5 12.8284 1.5 12V9ZM3 8.5C2.72386 8.5 2.5 8.72386 2.5 9V12C2.5 12.2761 2.72386 12.5 3 12.5H6C6.27614 12.5 6.5 12.2761 6.5 12V9C6.5 8.72386 6.27614 8.5 6 8.5H3ZM8.5 3C8.5 2.17157 9.17157 1.5 10 1.5H12C12.8284 1.5 13.5 2.17157 13.5 3V6C13.5 6.82843 12.8284 7.5 12 7.5H10C9.17157 7.5 8.5 6.82843 8.5 6V3ZM10 2.5C9.72386 2.5 9.5 2.72386 9.5 3V6C9.5 6.27614 9.72386 6.5 10 6.5H12C12.2761 6.5 12.5 6.27614 12.5 6V3C12.5 2.72386 12.2761 2.5 12 2.5H10ZM8.5 9C8.5 8.17157 9.17157 7.5 10 7.5H12C12.8284 7.5 13.5 8.17157 13.5 9V12C13.5 12.8284 12.8284 13.5 12 13.5H10C9.17157 13.5 8.5 12.8284 8.5 12V9ZM10 8.5C9.72386 8.5 9.5 8.72386 9.5 9V12C9.5 12.2761 9.72386 12.5 10 12.5H12C12.2761 12.5 12.5 12.2761 12.5 12V9C12.5 8.72386 12.2761 8.5 12 8.5H10Z" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"/></svg>
+        </span>
+        Dashboard
+      </button>
+      <button class="nav-item" data-view="prepare">
+        <span class="nav-icon">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 2.75C8 2.47386 7.77614 2.25 7.5 2.25C7.22386 2.25 7 2.47386 7 2.75V7H2.75C2.47386 7 2.25 7.22386 2.25 7.5C2.25 7.77614 2.47386 8 2.75 8H7V12.25C7 12.5261 7.22386 12.75 7.5 12.75C7.77614 12.75 8 12.5261 8 12.25V8H12.25C12.5261 8 12.75 7.77614 12.75 7.5C12.75 7.22386 12.5261 7 12.25 7H8V2.75Z" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"/></svg>
+        </span>
+        New practice
+      </button>
+      <button class="nav-item" data-view="history">
+        <span class="nav-icon">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7.5 1.5C4.18629 1.5 1.5 4.18629 1.5 7.5C1.5 10.8137 4.18629 13.5 7.5 13.5C10.8137 13.5 13.5 10.8137 13.5 7.5C13.5 4.18629 10.8137 1.5 7.5 1.5ZM2.5 7.5C2.5 4.73858 4.73858 2.5 7.5 2.5C10.2614 2.5 12.5 4.73858 12.5 7.5C12.5 10.2614 10.2614 12.5 7.5 12.5C4.73858 12.5 2.5 10.2614 2.5 7.5ZM7.5 4C7.77614 4 8 4.22386 8 4.5V7.29289L9.64645 8.93934C9.84171 9.1346 9.84171 9.45118 9.64645 9.64645C9.45118 9.84171 9.1346 9.84171 8.93934 9.64645L7.14645 7.85355C7.05268 7.75979 7 7.63261 7 7.5V4.5C7 4.22386 7.22386 4 7.5 4Z" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"/></svg>
+        </span>
+        Sessions & progress
+      </button>
+      <button class="nav-item" data-view="privacy">
+        <span class="nav-icon">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6.35355 1.14645C6.44732 1.05268 6.5745 1 6.70711 1H8.29289C8.4255 1 8.55268 1.05268 8.64645 1.14645L9.64645 2.14645C9.74021 2.24021 9.79289 2.36739 9.79289 2.5V3.08579C10.1989 3.25424 10.5752 3.48625 10.9067 3.76863L11.4645 3.44645C11.5794 3.37996 11.7206 3.37996 11.8355 3.44645L13.2497 4.26301C13.3647 4.3295 13.4353 4.45182 13.4353 4.58479V4.70711C13.4353 4.83972 13.3826 4.9669 13.2889 5.06066L12.4393 5.91022C12.5739 6.42232 12.6464 6.95383 12.6464 7.5C12.6464 8.04617 12.5739 8.57768 12.4393 9.08978L13.2889 9.93934C13.3826 10.0331 13.4353 10.1603 13.4353 10.2929V10.4152C13.4353 10.5482 13.3647 10.6705 13.2497 10.737L11.8355 11.5536C11.7206 11.62 11.5794 11.62 11.4645 11.5536L10.9067 11.2314C10.5752 11.5138 10.1989 11.7458 9.79289 11.9142V12.5C9.79289 12.6326 9.74021 12.7598 9.64645 12.8536L8.64645 13.8536C8.55268 13.9473 8.4255 14 8.29289 14H6.70711C6.5745 14 6.44732 13.9473 6.35355 13.8536L5.35355 12.8536C5.25979 12.7598 5.20711 12.6326 5.20711 12.5V11.9142C4.80112 11.7458 4.4248 11.5138 4.09332 11.2314L3.53553 11.5536C3.42062 11.62 3.27938 11.62 3.16447 11.5536L1.75026 10.737C1.6353 10.6705 1.56467 10.5482 1.56467 10.4152V10.2929C1.56467 10.1603 1.61735 10.0331 1.71112 9.93934L2.56066 9.08978C2.42611 8.57768 2.35355 8.04617 2.35355 7.5C2.35355 6.95383 2.42611 6.42232 2.56066 5.91022L1.71112 5.06066C1.61735 4.9669 1.56467 4.83972 1.56467 4.70711V4.58479C1.56467 4.45182 1.6353 4.3295 1.75026 4.26301L3.16447 3.44645C3.27938 3.37996 3.42062 3.37996 3.53553 3.44645L4.09332 3.76863C4.4248 3.48625 4.80112 3.25424 5.20711 3.08579V2.5C5.20711 2.36739 5.25979 2.24021 5.35355 2.14645L6.35355 1.14645ZM7.5 9.5C8.60457 9.5 9.5 8.60457 9.5 7.5C9.5 6.39543 8.60457 5.5 7.5 5.5C6.39543 5.5 5.5 6.39543 5.5 7.5C5.5 8.60457 6.39543 9.5 7.5 9.5Z" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"/></svg>
+        </span>
+        Privacy & settings
+      </button>
     </nav>
-    <div class="sidebar-bottom"><div class="ai-state"><span id="aiDot" class="status-dot"></span><div><strong id="aiStatus">Checking AI…</strong><small id="aiModel">Gemini connection</small></div></div><div class="support-box"><span>✦</span><strong>Grow with every attempt.</strong><p>Practice your stories. See your progress. Build confidence.</p></div><button id="signOut" class="signout">↪ &nbsp; Sign out</button></div>
+
+    <div class="sidebar-bottom">
+      <div class="system-status">
+        <div class="status-indicator">
+          <span id="aiDot" class="status-dot"></span>
+          <span id="aiStatus" class="status-label">Checking AI…</span>
+        </div>
+        <div id="aiModel" class="status-caption">Gemini Flash</div>
+      </div>
+      
+      <button id="signOut" class="btn-signout" type="button">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 1.5C2.17157 1.5 1.5 2.17157 1.5 3V12C1.5 12.8284 2.17157 13.5 3 13.5H7.5C7.77614 13.5 8 13.2761 8 13C8 12.7239 7.77614 12.5 7.5 12.5H3C2.72386 12.5 2.5 12.2761 2.5 12V3C2.5 2.72386 2.72386 2.5 3 2.5H7.5C7.77614 2.5 8 2.27614 8 2C8 1.72386 7.77614 1.5 7.5 1.5H3ZM10.8536 4.64645C11.0488 4.45118 11.3654 4.45118 11.5607 4.64645L14.0607 7.14645C14.2559 7.34171 14.2559 7.65829 14.0607 7.85355L11.5607 10.3536C11.3654 10.5488 11.0488 10.5488 10.8536 10.3536C10.6583 10.1583 10.6583 9.84171 10.8536 9.64645L12.5 8H6C5.72386 8 5.5 7.77614 5.5 7.5C5.5 7.22386 5.72386 7 6 7H12.5L10.8536 5.35355C10.6583 5.15829 10.6583 4.84171 10.8536 4.64645Z" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"/>
+        </svg>
+        <span>Sign out</span>
+      </button>
+    </div>
   </aside>
+
   <div class="workspace">
-    <header class="topbar"><div class="breadcrumbs">WORKSPACE <span>/</span> <strong id="breadcrumb">Dashboard</strong></div><div class="top-actions"><span class="top-private">◉ &nbsp;Local-first practice</span><div class="avatar" id="avatar">U</div><span id="userName">Student</span></div></header>
+    <header class="topbar">
+      <div class="breadcrumbs">
+        <span>MOCKPREP</span>
+        <span class="bc-sep">/</span>
+        <strong id="breadcrumb">DASHBOARD</strong>
+      </div>
+      <div class="top-actions">
+        <span class="top-badge">LOCAL STORAGE</span>
+        <div class="avatar" id="avatar">U</div>
+        <span id="userName" class="user-name">User</span>
+      </div>
+    </header>
     <main id="view" tabindex="-1"></main>
   </div>
 </div>
+
 <div id="toast" class="toast hidden" role="status"></div>
 <video id="cameraSource" muted playsinline autoplay class="source-video"></video>
 <video id="screenSource" muted playsinline autoplay class="source-video"></video>
 <video id="secondSource" muted playsinline autoplay class="source-video"></video>
 <video id="remoteSource" muted playsinline autoplay class="source-video"></video>
 <canvas id="recordCanvas" width="1280" height="720" class="source-video"></canvas>
-<script type="module" src="/static/app.js"></script>
-</body></html>
+<script type="module" src="/static/app.js?v=3"></script>
+</body>
+</html>

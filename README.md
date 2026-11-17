@@ -9,9 +9,12 @@ A responsive, consent-based **AI mock interview studio** for **UI/UX designers**
 1. Install **Python 3.10+** and Chrome or Edge.
 2. Extract this ZIP and open Terminal in `mock-preparation-ai-final`.
 3. Run `cp .env.example .env`.
-4. Open `.env` in a text editor. Set `GEMINI_API_KEY=your_actual_new_key` using a **valid Gemini API key from Google AI Studio**. Keep this secret; never add it to browser JS or commit it to Git. The app still has a clearly labeled demo mode if no key is provided.
-5. Run `bash run.sh`.
-6. Open **http://127.0.0.1:8000** in Chrome or Edge. Create your account and start a practice.
+4. Open `.env` in a text editor.
+   - Set `GEMINI_API_KEY=your_actual_key` using a valid Gemini API key from Google AI Studio.
+   - Set `SUPABASE_URL=https://your-project.supabase.co` and `SUPABASE_ANON_KEY=your_anon_key` from your Supabase Project Settings -> API.
+   - In your Supabase Dashboard, go to **Authentication -> Providers -> Google**, enable it, and add your Google Cloud OAuth Client ID & Secret. Add `http://127.0.0.1:8000` to the Redirect URLs.
+5. Run `bash run.sh` (or `run.bat` on Windows).
+6. Open **http://127.0.0.1:8000** in Chrome or Edge. Click **Continue with Google** to sign in and start practicing.
 
 Windows: copy `.env.example` to `.env`, edit it, and double-click **run.bat** from within the unzipped folder. If Windows blocks the batch file, open Command Prompt in the folder and run `run.bat` manually.
 
@@ -28,7 +31,7 @@ python -m uvicorn server:app --env-file .env --host 127.0.0.1 --port 8000
 
 | Function | Implementation |
 | --- | --- |
-| Account registration and sign-in | Password hashing (scrypt), HttpOnly session cookies, local SQLite |
+| Account registration and sign-in | Google OAuth via Supabase, server-side token verification, HttpOnly session cookies, local SQLite |
 | AI question generation | Gemini REST `generateContent` via server-side key |
 | AI follow-up questions | Gemini can ask a new question based on the previous saved answer |
 | AI question voice | Browser text-to-speech (`speechSynthesis`) |

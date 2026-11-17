@@ -25,9 +25,16 @@ if pytest:
         with TestClient(server.app) as c:
             yield c
 
-def register(client,email='student@example.test'):
-    r=client.post('/api/auth/register',json={'name':'UI UX Student','email':email,'password':'secure-password-123'})
-    assert r.status_code==200,r.text
+def mock_supabase_login(client, email='student@example.test', name='UI UX Student', sub_id='sub-test-123'):
+    async def fake_verify_token(token: str):
+        return {
+            'id': sub_id,
+            'email': email,
+            'user_metadata': {'full_name': name, 'name': name}
+        }
+    server.verify_supabase_token = fake_verify_token
+    r = client.post('/api/auth/supabase-session', json={'access_token': 'fake-supabase-token'})
+    assert r.status_code == 200, r.text
 
 
 def start(client,**extra):
@@ -41,7 +48,7 @@ def start(client,**extra):
 
 
 def test_auth_session_report_export_delete(client):
-    register(client)
+    mock_supabase_login(client)
     session=start(client)
     assert client.get('/api/me').json()['name']=='UI UX Student'
     assert client.get(f'/api/interviews/{session}').json()['checkin']=={'energy':'High','feeling':'Nervous'}
@@ -58,18 +65,18 @@ def test_auth_session_report_export_delete(client):
     assert client.get(f'/api/interviews/{session}').status_code==404
 
 def test_permissions_and_owner(client):
-    register(client)
+    mock_supabase_login(client)
     session=start(client,consent={'camera':False,'microphone':False,'screen':False,'record':False,'secondary':False})
     assert client.post(f'/api/interviews/{session}/recording',files={'file':('x.webm',b'data','video/webm')}).status_code==403
     assert client.post(f'/api/interviews/{session}/checkin',files={'file':('p.jpg',b'fake','image/jpeg')}).status_code==403
     assert client.post(f'/api/interviews/{session}/invite').status_code==403
     client.post('/api/auth/logout')
     assert client.get(f'/api/interviews/{session}').status_code==401
-    register(client,'different@example.test')
+    mock_supabase_login(client,'different@example.test', sub_id='sub-diff-456')
     assert client.get(f'/api/interviews/{session}').status_code==404
 
 def test_recording_and_photo_and_invite(client):
-    register(client)
+    mock_supabase_login(client)
     session=start(client)
     assert client.post(f'/api/interviews/{session}/recording',files={'file':('video.webm',b'fake-video-data','video/webm')}).status_code==200
     assert client.post(f'/api/interviews/{session}/checkin',files={'file':('photo.jpg',b'fake-photo','image/jpeg')}).status_code==200
@@ -91,7 +98,7 @@ def test_mocked_gemini_generation_transcription_report(client,monkeypatch):
         return {'questions':['Tell me about your experience','Explain research','Describe a usability test']}
     monkeypatch.setattr(server,'GEMINI_KEY','fake-test-key')
     monkeypatch.setattr(server,'gemini',fake_gemini)
-    register(client)
+    mock_supabase_login(client)
     session=start(client)
     data=client.get(f'/api/interviews/{session}').json()
     assert len(data['questions'])==3

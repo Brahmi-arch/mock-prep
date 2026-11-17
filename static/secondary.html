@@ -1,8 +1,51 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Secondary camera · Mock Prep</title><link rel="stylesheet" href="/static/style.css"/></head><body class="secondary-body">
-<main class="secondary-card"><div class="brand"><span class="brand-mark">✳</span><div class="brand-name">mock<span class="brand-highlight">prep</span><small>SECOND CAMERA</small></div></div>
-<h2>Connect your phone camera</h2><p class="muted">This adds a second viewing angle to your own practice recording. Nothing starts until you grant permission. You can disconnect whenever you want.</p>
-<video id="preview" autoplay muted playsinline style="width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:18px;background:#123d30;margin:20px 0"></video>
-<div id="status" class="info-banner">Ready to connect. Use HTTPS when opening on your phone.</div>
-<button id="connect" class="btn primary full">Allow camera & connect</button><button id="disconnect" class="btn ghost full" disabled>Disconnect</button>
-<p class="fine-print">This is live WebRTC peer-to-peer video; the host's session recording can include your feed. Connection requires a compatible network, and some networks need TURN configuration.</p>
-</main><script type="module" src="/static/secondary.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Secondary Camera — MockPrep</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css?v=3" />
+</head>
+<body class="secondary-body">
+  <main class="secondary-card" aria-label="Secondary camera connection">
+    <div class="auth-brand" style="margin-bottom: 0;">
+      <div class="brand-symbol">
+        <svg width="16" height="16" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M1.5 3C1.5 2.17157 2.17157 1.5 3 1.5H12C12.8284 1.5 13.5 2.17157 13.5 3V12C13.5 12.8284 12.8284 13.5 12 13.5H3C2.17157 13.5 1.5 12.8284 1.5 12V3ZM3 2.5C2.72386 2.5 2.5 2.72386 2.5 3V12C2.5 12.2761 2.72386 12.5 3 12.5H12C12.2761 12.5 12.5 12.2761 12.5 12V3C12.5 2.72386 12.2761 2.5 12 2.5H3Z" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"/>
+          <path d="M4.5 7.5H10.5M7.5 4.5V10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-title">MockPrep</div>
+        <div class="brand-sub">SECONDARY CAMERA</div>
+      </div>
+    </div>
+
+    <div>
+      <h1 style="font-size: 18px; margin-bottom: 4px;">Connect mobile camera</h1>
+      <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">
+        Streams a secondary angle to your local practice room via WebRTC peer connection.
+      </p>
+    </div>
+
+    <video id="preview" autoplay muted playsinline class="secondary-video-box"></video>
+
+    <div id="status" class="info-banner">
+      Ready to connect. HTTPS required for mobile browser camera access.
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <button id="connect" class="btn primary full">Allow camera & connect</button>
+      <button id="disconnect" class="btn secondary full" disabled>Disconnect camera</button>
+    </div>
+
+    <p style="font-size: 11px; color: var(--text-muted); line-height: 1.4; border-top: 1px solid var(--border); padding-top: 12px;">
+      All video streams stay local to your session. Connection requires direct WebRTC reachability.
+    </p>
+  </main>
+  <script type="module" src="/static/secondary.js?v=3"></script>
+</body>
+</html>

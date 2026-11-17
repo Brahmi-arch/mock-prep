@@ -39,6 +39,13 @@ DB_PATH = STORAGE / "app.sqlite3"
 STATIC = ROOT / "static"
 GEMINI_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+SUPABASE_PUBLISHABLE_KEY = (
+    os.getenv("SUPABASE_PUBLISHABLE_KEY", "").strip()
+    or os.getenv("SUPABASE_ANON_KEY", "").strip()
+)
+SUPABASE_SECRET_KEY = os.getenv("SUPABASE_SECRET_KEY", "").strip()
+SUPABASE_JWKS_URL = os.getenv("SUPABASE_JWKS_URL", "").strip()
 API = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 AUTH_COOKIE = "mockprep_session"
 MAX_UPLOAD = 250 * 1024 * 1024
@@ -103,6 +110,9 @@ def init_db():
         fields = [r[1] for r in c.execute("PRAGMA table_info(interviews)").fetchall()]
         if "checkin_json" not in fields:
             c.execute("ALTER TABLE interviews ADD COLUMN checkin_json TEXT")
+        user_fields = [r[1] for r in c.execute("PRAGMA table_info(users)").fetchall()]
+        if "supabase_uid" not in user_fields:
+            c.execute("ALTER TABLE users ADD COLUMN supabase_uid TEXT")
 
 init_db()
 app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
@@ -110,47 +120,6 @@ app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
 
 def utc():
     return datetime.now(timezone.utc).isoformat()
-
-
-def hashed_password(password: str) -> str:
-    salt = secrets.token_bytes(16)
-    if hasattr(hashlib, "scrypt"):
-        try:
-            pwd_hash = hashlib.scrypt(password.encode(), salt=salt, n=16384, r=8, p=1)
-            return "scrypt:" + salt.hex() + ":" + pwd_hash.hex()
-        except (AttributeError, ValueError):
-            pass
-    pwd_hash = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 100_000)
-    return "pbkdf2:" + salt.hex() + ":" + pwd_hash.hex()
-
-
-def password_ok(password: str, stored: str) -> bool:
-    try:
-        parts = stored.split(":")
-        if len(parts) == 3:
-            algo, s, p = parts
-            salt = bytes.fromhex(s)
-            expected = bytes.fromhex(p)
-            if algo == "scrypt":
-                if hasattr(hashlib, "scrypt"):
-                    trial = hashlib.scrypt(password.encode(), salt=salt, n=16384, r=8, p=1)
-                    return hmac.compare_digest(trial, expected)
-                return False
-            elif algo == "pbkdf2":
-                trial = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 100_000)
-                return hmac.compare_digest(trial, expected)
-            return False
-        elif len(parts) == 2:
-            s, p = parts
-            salt = bytes.fromhex(s)
-            expected = bytes.fromhex(p)
-            if hasattr(hashlib, "scrypt"):
-                trial = hashlib.scrypt(password.encode(), salt=salt, n=16384, r=8, p=1)
-                return hmac.compare_digest(trial, expected)
-            return False
-        return False
-    except (ValueError, TypeError):
-        return False
 
 
 def user_id(request: Request) -> int:
@@ -216,14 +185,16 @@ async def gemini(prompt: str, *, audio: bytes | None = None, mime: str = "audio/
         raise HTTPException(502, f"Gemini response error: {str(ex)[:300]}") from ex
 
 
-class AuthInput(BaseModel):
-    name: str = ""
-    email: str
-    password: str
-
 @app.get("/")
 def index():
-    return FileResponse(STATIC / "index.html")
+    return FileResponse(
+        STATIC / "index.html",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
 
 @app.get("/second-camera")
 def secondary_page():
@@ -231,21 +202,105 @@ def secondary_page():
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "ai_configured": bool(GEMINI_KEY), "model": GEMINI_MODEL,
-            "storage": "local", "face_monitoring": "browser MediaPipe optional"}
+    return {
+        "status": "ok",
+        "ai_configured": bool(GEMINI_KEY),
+        "model": GEMINI_MODEL,
+        "storage": "local",
+        "face_monitoring": "browser MediaPipe optional",
+        "supabase_configured": bool(SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY),
+    }
 
-@app.post("/api/auth/register")
-def register(body: AuthInput, response: Response):
-    email = body.email.strip().lower()
-    name = body.name.strip()[:100]
-    if not name or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email) or len(body.password) < 8:
-        raise HTTPException(400, "Enter your name, valid email and password of at least 8 characters.")
+@app.get("/api/auth/config")
+def auth_config():
+    return {
+        "supabase_url": SUPABASE_URL,
+        "supabase_anon_key": SUPABASE_PUBLISHABLE_KEY,
+        "supabase_publishable_key": SUPABASE_PUBLISHABLE_KEY,
+        "configured": bool(SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY),
+    }
+
+async def verify_supabase_token(token: str) -> dict[str, Any]:
+    if not SUPABASE_URL or not SUPABASE_PUBLISHABLE_KEY:
+        raise HTTPException(500, "Supabase credentials are not configured in .env.")
+    api_key = SUPABASE_SECRET_KEY or SUPABASE_PUBLISHABLE_KEY
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "apikey": api_key,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.get(f"{SUPABASE_URL}/auth/v1/user", headers=headers)
+        if r.status_code != 200:
+            raise HTTPException(401, "Invalid or expired Supabase token.")
+        data = r.json()
+        if not isinstance(data, dict) or "id" not in data:
+            raise HTTPException(401, "Invalid response from Supabase Auth.")
+        return data
+    except httpx.HTTPError as ex:
+        raise HTTPException(502, f"Could not reach Supabase Auth server: {str(ex)}") from ex
+
+
+class SupabaseSessionInput(BaseModel):
+    access_token: str
+
+
+async def sync_user_to_supabase(uid: str, email: str, name: str, avatar_url: str):
+    if not SUPABASE_URL or not SUPABASE_SECRET_KEY:
+        return
+    headers = {
+        "apikey": SUPABASE_SECRET_KEY,
+        "Authorization": f"Bearer {SUPABASE_SECRET_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates",
+    }
+    payload = {
+        "id": uid,
+        "email": email,
+        "full_name": name,
+        "avatar_url": avatar_url,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(f"{SUPABASE_URL}/rest/v1/profiles", headers=headers, json=payload)
+    except Exception:
+        pass
+
+
+@app.post("/api/auth/supabase-session")
+async def supabase_session_login(body: SupabaseSessionInput, response: Response):
+    token = body.access_token.strip()
+    if not token:
+        raise HTTPException(400, "Missing Supabase access token.")
+
+    user_data = await verify_supabase_token(token)
+    email = str(user_data.get("email") or "").strip().lower()
+    if not email:
+        raise HTTPException(400, "Google account did not return a valid email address.")
+
+    metadata = user_data.get("user_metadata") or {}
+    name = str(metadata.get("full_name") or metadata.get("name") or email.split("@")[0]).strip()[:100]
+    sub_id = str(user_data.get("id") or "").strip()
+    avatar_url = str(metadata.get("avatar_url") or metadata.get("picture") or "").strip()
+
+    # Sync to Supabase public.profiles table
+    await sync_user_to_supabase(sub_id, email, name, avatar_url)
+
     with db() as c:
-        if c.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone():
-            raise HTTPException(409, "Email is already registered.")
-        cur = c.execute("INSERT INTO users(name,email,password_hash,created_at) VALUES (?,?,?,?)",
-                        (name, email, hashed_password(body.password), utc()))
-        uid = cur.lastrowid
+        row = c.execute(
+            "SELECT id, name FROM users WHERE email=? OR (supabase_uid=? AND supabase_uid IS NOT NULL AND supabase_uid != '')",
+            (email, sub_id)
+        ).fetchone()
+        if row:
+            uid = row["id"]
+            c.execute("UPDATE users SET name=?, supabase_uid=? WHERE id=?", (name or row["name"], sub_id, uid))
+        else:
+            cur = c.execute(
+                "INSERT INTO users(name, email, password_hash, created_at, supabase_uid) VALUES (?,?,?,?,?)",
+                (name, email, "supabase:google", utc(), sub_id)
+            )
+            uid = cur.lastrowid
+
     set_token(response, uid)
     return {"id": uid, "name": name, "email": email}
 
@@ -257,16 +312,6 @@ def set_token(response: Response, uid: int):
                   (hashlib.sha256(value.encode()).hexdigest(), uid, int(time.time()) + 604800))
     response.set_cookie(AUTH_COOKIE, value, httponly=True, samesite="strict", secure=False,
                         max_age=604800, path="/")  # secure=True when deploying behind HTTPS
-
-@app.post("/api/auth/login")
-def login(body: AuthInput, response: Response):
-    email = body.email.strip().lower()
-    with db() as c:
-        u = c.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
-    if not u or not password_ok(body.password, u["password_hash"]):
-        raise HTTPException(401, "Incorrect email or password.")
-    set_token(response, u["id"])
-    return {"id": u["id"], "name": u["name"], "email": u["email"]}
 
 @app.post("/api/auth/logout")
 def logout(request: Request, response: Response):
