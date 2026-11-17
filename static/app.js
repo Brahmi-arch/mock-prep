@@ -2117,6 +2117,13 @@ async function signOut() {
 // App Initialization & Global Event Listeners
 // -----------------------------------------------------------------------------
 async function initialize() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const oauthErr = urlParams.get('error_description') || urlParams.get('error');
+  if (oauthErr) {
+    toast('Authentication: ' + oauthErr, true);
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+
   try {
     S.health = await api('/health');
     $('#aiStatus').textContent = S.health.ai_configured ? 'Gemini connected' : 'Template mode';
