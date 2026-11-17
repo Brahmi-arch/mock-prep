@@ -13,7 +13,9 @@ import json
 import os
 import re
 import secrets
+import shutil
 import sqlite3
+import tempfile
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -33,8 +35,77 @@ except Exception:
     pass
 
 ROOT = Path(__file__).resolve().parent
-STORAGE = ROOT / "storage"
-STORAGE.mkdir(exist_ok=True)
+
+def resolve_storage() -> Path:
+    # 1. Custom directory configured in environment (e.g. for persistent cloud volumes)
+    env_dir = os.getenv("STORAGE_DIR", "").strip()
+    if env_dir:
+        p = Path(env_dir)
+        try:
+            p.mkdir(parents=True, exist_ok=True)
+            t = p / ".test_write"
+            t.write_text("1")
+            t.unlink(missing_ok=True)
+            return p
+        except Exception:
+            pass
+
+    # 2. Default local ./storage folder
+    default_p = ROOT / "storage"
+    try:
+        default_p.mkdir(parents=True, exist_ok=True)
+        if hasattr(os, "chmod"):
+            try:
+                os.chmod(default_p, 0o777)
+                for item in default_p.glob("*"):
+                    try:
+                        os.chmod(item, 0o666)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        t = default_p / ".test_write"
+        t.write_text("1")
+        t.unlink(missing_ok=True)
+
+        # Test writing to SQLite directly to verify filesystem isn't read-only
+        db_file = default_p / "app.sqlite3"
+        con = sqlite3.connect(db_file, timeout=5)
+        try:
+            con.execute("CREATE TABLE IF NOT EXISTS _test_rw (id INT)")
+            con.execute("INSERT INTO _test_rw VALUES (1)")
+            con.execute("DROP TABLE _test_rw")
+            con.commit()
+        finally:
+            con.close()
+
+        return default_p
+    except Exception:
+        pass
+
+    # 3. Fallback to system temp directory (writable on Vercel, AWS Lambda, read-only containers)
+    tmp_p = Path(tempfile.gettempdir()) / "mockprep_storage"
+    tmp_p.mkdir(parents=True, exist_ok=True)
+    if hasattr(os, "chmod"):
+        try:
+            os.chmod(tmp_p, 0o777)
+        except Exception:
+            pass
+
+    existing_db = default_p / "app.sqlite3"
+    target_db = tmp_p / "app.sqlite3"
+    if existing_db.exists() and not target_db.exists():
+        try:
+            shutil.copy2(existing_db, target_db)
+            if hasattr(os, "chmod"):
+                os.chmod(target_db, 0o666)
+        except Exception:
+            pass
+
+    return tmp_p
+
+STORAGE = resolve_storage()
 DB_PATH = STORAGE / "app.sqlite3"
 STATIC = ROOT / "static"
 GEMINI_KEY = os.getenv("GEMINI_API_KEY", "").strip()
