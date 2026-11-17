@@ -1573,6 +1573,156 @@ function stopFaceTracking() {
 }
 
 // -----------------------------------------------------------------------------
+// Affect Analysis (Russell's Circumplex Model of Affect)
+// Dynamically maps candidate's baseline check-in (Valence/Arousal) and adapts
+// it across each prompt based on speech duration, word count, pace, and progression.
+// -----------------------------------------------------------------------------
+function computeCmaTrajectory(questions, checkin = {}) {
+  const energy = (checkin.energy || 'Moderate').toLowerCase();
+  const feeling = (checkin.feeling || 'Focused').toLowerCase();
+
+  // Baseline Valence (horizontal: -1 unpleasant to +1 pleasant)
+  // Baseline Arousal (vertical: -1 low activation to +1 high activation)
+  let baseValence = 0.25;
+  let baseArousal = 0.15;
+
+  if (feeling.includes('tense')) {
+    baseValence = -0.40;
+    baseArousal = 0.45;
+  } else if (feeling.includes('calm')) {
+    baseValence = 0.45;
+    baseArousal = -0.30;
+  } else if (feeling.includes('confident')) {
+    baseValence = 0.60;
+    baseArousal = 0.25;
+  } else if (feeling.includes('focused')) {
+    baseValence = 0.35;
+    baseArousal = 0.30;
+  }
+
+  if (energy.includes('high')) {
+    baseArousal += 0.25;
+  } else if (energy.includes('low')) {
+    baseArousal -= 0.30;
+  }
+
+  const list = questions.length ? questions : [{ idx: 0, text: '', duration: 0 }];
+  const total = list.length;
+
+  const points = list.map((qItem, i) => {
+    const txt = (qItem.text || '').trim();
+    const words = txt ? wordCount(txt) : 0;
+    const dur = Math.round(qItem.duration || 0);
+    const wpm = (dur >= 5 && words > 0) ? Math.round(words / (dur / 60)) : 0;
+
+    let v = baseValence;
+    let a = baseArousal;
+
+    // Progression arc: early prompts carry warmup activation; later prompts acclimate into flow
+    if (i === 0) {
+      a += 0.12;
+      if (feeling.includes('tense')) v -= 0.10;
+    } else {
+      const progress = i / Math.max(1, total - 1);
+      v += progress * 0.22;
+      if (a > 0.30) a -= progress * 0.16;
+    }
+
+    // Response fluency & depth adjustments
+    if (words >= 80) {
+      v += 0.18;
+      a += 0.08;
+    } else if (words >= 35) {
+      v += 0.10;
+      a += 0.04;
+    } else if (words === 0 && dur === 0) {
+      v -= 0.22;
+      a -= 0.10;
+    } else if (words < 15) {
+      v -= 0.20;
+      a += 0.10;
+    }
+
+    // Speech pacing modulation
+    if (wpm > 170) {
+      a += 0.15;
+      v -= 0.06;
+    } else if (wpm >= 115 && wpm <= 165) {
+      v += 0.10;
+    } else if (wpm > 0 && wpm < 85) {
+      v -= 0.08;
+    }
+
+    // Clamping within circumplex boundary radius
+    v = Math.max(-0.82, Math.min(0.82, v));
+    a = Math.max(-0.82, Math.min(0.82, a));
+
+    // Map to SVG coordinates: Center (120, 105), radius factor 56
+    let cx = Math.round(120 + (v * 56));
+    let cy = Math.round(105 - (a * 56));
+
+    // Descriptive affect classification
+    let stateLabel = '';
+    if (v >= 0 && a >= 0.15) {
+      stateLabel = a > 0.45 ? 'Confident / High energy' : 'Focused / Optimal flow';
+    } else if (v >= 0 && a < 0.15) {
+      stateLabel = a < -0.20 ? 'Relaxed / Low energy' : 'Calm / Composed';
+    } else if (v < 0 && a >= 0.05) {
+      stateLabel = a > 0.40 ? 'Tense / High energy' : 'Pressured / High activation';
+    } else {
+      stateLabel = a < -0.20 ? 'Fatigued / Low energy' : 'Hesitant / Reserved';
+    }
+
+    const metricsStr = dur > 0
+      ? `${dur}s · ${words}w${wpm > 0 ? ` · ${wpm} wpm` : ''}`
+      : (words > 0 ? `${words}w` : 'No response');
+
+    return {
+      idx: qItem.idx ?? i,
+      qNum: i + 1,
+      v,
+      a,
+      cx,
+      cy,
+      label: stateLabel,
+      metrics: metricsStr
+    };
+  });
+
+  // Minor collision relaxation so adjacent dots do not overlap
+  for (let i = 1; i < points.length; i++) {
+    for (let j = 0; j < i; j++) {
+      const dx = points[i].cx - points[j].cx;
+      const dy = points[i].cy - points[j].cy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 14) {
+        points[i].cx += (dx >= 0 ? 8 : -8);
+        points[i].cy += (dy >= 0 ? 8 : -8);
+      }
+    }
+  }
+
+  // Determine smart label offset and anchor for SVG rendering
+  return points.map(p => {
+    let anchor = 'middle';
+    let labelX = p.cx;
+    let labelY = p.cy - 7;
+    if (p.cx > 155) {
+      anchor = 'end';
+      labelX = p.cx - 8;
+      labelY = p.cy + 3;
+    } else if (p.cx < 85) {
+      anchor = 'start';
+      labelX = p.cx + 8;
+      labelY = p.cy + 3;
+    } else if (p.cy > 110) {
+      labelY = p.cy + 13;
+    }
+    return { ...p, anchor, labelX, labelY };
+  });
+}
+
+// -----------------------------------------------------------------------------
 // View 4: Evaluation Report
 // -----------------------------------------------------------------------------
 async function renderReport() {
@@ -1611,12 +1761,25 @@ async function renderReport() {
       title: `Prompt ${i + 1} · ${topic}`,
       q,
       text: a?.text || '',
+      duration: a?.duration || 0,
       feedback: fb
     };
   });
 
   const events = S.item.events || [];
   const nextStepPrompt = (report.next_steps && report.next_steps[0]) || 'Refine outcome quantification and design system rationale.';
+  const checkin = S.item.checkin || {};
+  const energy = checkin.energy || 'Moderate';
+  const feeling = checkin.feeling || 'Focused';
+
+  const cmaPoints = computeCmaTrajectory(questions, checkin);
+  const trajectorySvg = cmaPoints.length > 1
+    ? `<polyline points="${cmaPoints.map(p => `${p.cx},${p.cy}`).join(' ')}" fill="none" stroke="#71717a" stroke-width="1.2" stroke-dasharray="2 3"/>`
+    : '';
+  const dotsSvg = cmaPoints.map(p => `
+    <circle cx="${p.cx}" cy="${p.cy}" r="4" fill="#09090b" stroke="#ffffff" stroke-width="1.5"/>
+    <text x="${p.labelX}" y="${p.labelY}" text-anchor="${p.anchor}" font-size="8" font-weight="700" fill="#09090b">Q${p.qNum}</text>
+  `).join('');
 
   $('#view').innerHTML = `
     <div class="content">
@@ -1734,26 +1897,28 @@ async function renderReport() {
               <text x="32" y="108" text-anchor="end" font-size="7.5" font-weight="700" fill="#71717a" letter-spacing="0.08em">UNPLEASANT</text>
               <text x="208" y="108" text-anchor="start" font-size="7.5" font-weight="700" fill="#71717a" letter-spacing="0.08em">PLEASANT</text>
               
-              <!-- Monochromatic plotted coordinate points -->
-              <circle cx="100" cy="74" r="5" fill="#09090b"/>
-              <text x="100" y="65" text-anchor="middle" font-size="8.5" font-weight="700" fill="#09090b">Q1</text>
+              <!-- Dynamic session trajectory -->
+              ${trajectorySvg}
               
-              <circle cx="145" cy="80" r="5" fill="#09090b"/>
-              <text x="156" y="80" text-anchor="start" font-size="8.5" font-weight="700" fill="#09090b">Q2</text>
-              
-              <circle cx="158" cy="120" r="5" fill="#09090b"/>
-              <text x="168" y="125" text-anchor="start" font-size="8.5" font-weight="700" fill="#09090b">Q3</text>
+              <!-- Dynamic plotted coordinate points -->
+              ${dotsSvg}
             </svg>
           </div>
 
-          <div style="font-size: 11px; color: var(--text-secondary); line-height: 1.5; border-top: 1px solid var(--border); padding-top: 12px;">
-            <div>Q1: Tense / High energy</div>
-            <div>Q2: Focused / High energy</div>
-            <div>Q3: Calm / Moderate</div>
+          <div style="font-size: 11px; color: var(--text-secondary); line-height: 1.6; border-top: 1px solid var(--border); padding-top: 12px;">
+            <div style="margin-bottom: 8px;">Candidate baseline: <strong style="color: var(--text-primary);">${esc(energy)} energy · ${esc(feeling)}</strong></div>
+            <div style="display: flex; flex-direction: column; gap: 4px; max-height: 160px; overflow-y: auto;">
+              ${cmaPoints.map(p => `
+                <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 6px;">
+                  <span><strong style="color: var(--text-primary);">Q${p.qNum}:</strong> ${esc(p.label)}</span>
+                  <span style="color: var(--text-muted); font-size: 10px; font-variant-numeric: tabular-nums;">${esc(p.metrics)}</span>
+                </div>
+              `).join('')}
+            </div>
           </div>
 
-          <div style="font-size: 10px; color: var(--text-muted); margin-top: 10px;">
-            Self-reported during practice configuration. Never inferred from facial expressions.
+          <div style="font-size: 10px; color: var(--text-muted); margin-top: 10px; line-height: 1.4;">
+            Derived from self-reported baseline check-in and spoken response pacing. Never inferred from biometric facial surveillance.
           </div>
         </div>
       </div>
@@ -2294,27 +2459,41 @@ document.body.addEventListener('click', async e => {
 });
 
 // Report Tab Switching
+function switchReportTab(tab) {
+  const colQ = $('#colQuestions'), colT = $('#colTimeline'), colC = $('#colCma'), grid = $('.report-grid-3');
+  if (!grid || !colQ || !colT || !colC) return;
+
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+
+  if (tab === 'overview') {
+    colQ.style.display = '';
+    colT.style.display = '';
+    colC.style.display = '';
+    grid.style.gridTemplateColumns = '';
+    document.querySelectorAll('.q-item').forEach((el, idx) => el.classList.toggle('expanded', idx === 0));
+  } else if (tab === 'questions') {
+    colQ.style.display = 'block';
+    colT.style.display = 'none';
+    colC.style.display = 'none';
+    grid.style.gridTemplateColumns = '1fr';
+    document.querySelectorAll('.q-item').forEach(el => el.classList.add('expanded'));
+  } else if (tab === 'timeline') {
+    colQ.style.display = 'none';
+    colT.style.display = 'block';
+    colC.style.display = 'none';
+    grid.style.gridTemplateColumns = '1fr';
+  } else if (tab === 'cma') {
+    colQ.style.display = 'none';
+    colT.style.display = 'none';
+    colC.style.display = 'block';
+    grid.style.gridTemplateColumns = '1fr';
+  }
+}
+
 document.body.addEventListener('click', e => {
   const tabBtn = e.target.closest('.tab-btn');
   if (tabBtn && tabBtn.dataset.tab) {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === tabBtn));
-    const tab = tabBtn.dataset.tab;
-    const colQ = $('#colQuestions'), colT = $('#colTimeline'), colC = $('#colCma'), grid = $('.report-grid-3');
-    if (!grid) return;
-    if (tab === 'overview') {
-      if (colQ) colQ.style.display = '';
-      if (colT) colT.style.display = '';
-      if (colC) colC.style.display = '';
-      grid.style.gridTemplateColumns = '1fr 1.15fr 0.95fr';
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else if (tab === 'questions') {
-      document.querySelectorAll('.q-item').forEach(el => el.classList.add('expanded'));
-      colQ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else if (tab === 'timeline') {
-      colT?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else if (tab === 'cma') {
-      colC?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    switchReportTab(tabBtn.dataset.tab);
   }
 });
 
