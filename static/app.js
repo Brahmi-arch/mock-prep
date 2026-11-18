@@ -78,8 +78,162 @@ const S = {
       time: "Just now"
     }
   ],
-  coachTyping: false
+  coachTyping: false,
+  settings: {
+    theme: 'light',
+    density: 'comfortable',
+    highContrast: false,
+    fontSize: 'medium',
+    language: 'en',
+    aiVoice: '',
+    voiceRate: 1.0,
+    voicePitch: 1.0,
+    permissions: {
+      camera: true,
+      microphone: true,
+      screen: true,
+      face: true,
+      secondary: false
+    }
+  }
 };
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem('mockprep_settings');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      S.settings = { ...S.settings, ...parsed };
+      if (parsed.permissions) {
+        S.settings.permissions = { ...S.settings.permissions, ...parsed.permissions };
+      }
+    }
+  } catch {}
+  applySettings();
+}
+
+function saveSettings() {
+  try {
+    localStorage.setItem('mockprep_settings', JSON.stringify(S.settings));
+  } catch {}
+  applySettings();
+}
+
+function applySettings() {
+  if (!S.settings) return;
+  // 1. Theme
+  let isDark = false;
+  if (S.settings.theme === 'dark') isDark = true;
+  else if (S.settings.theme === 'auto') {
+    isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  document.body.classList.toggle('theme-dark', isDark);
+
+  // 2. Font Size
+  document.documentElement.setAttribute('data-font-size', S.settings.fontSize || 'medium');
+
+  // 3. Density & Contrast
+  document.body.classList.toggle('density-compact', S.settings.density === 'compact');
+  document.body.classList.toggle('high-contrast', !!S.settings.highContrast);
+
+  // 4. Permissions Sync
+  if (S.settings.permissions) {
+    S.setup.camera = !!S.settings.permissions.camera;
+    S.setup.microphone = !!S.settings.permissions.microphone;
+    S.setup.screen = !!S.settings.permissions.screen;
+    S.setup.face = !!S.settings.permissions.face;
+    S.setup.secondary = !!S.settings.permissions.secondary;
+  }
+}
+
+function testAiVoice() {
+  if (!('speechSynthesis' in window)) {
+    toast('Speech synthesis is unsupported in this browser.', true);
+    return;
+  }
+  window.speechSynthesis.cancel();
+
+  const isHindi = S.settings?.language === 'hi';
+  const sampleText = isHindi
+    ? "नमस्ते! मैं आपका एआई इंटरव्यू कोच हूँ। मैं आपके यूआई/यूएक्स मॉक इंटरव्यू की तैयारी में मदद करूँगा।"
+    : "Hello! I am your AI Design Coach. I am ready to guide your UI/UX interview practice with real-time feedback.";
+
+  const utter = new SpeechSynthesisUtterance(sampleText);
+  utter.rate = parseFloat(S.settings?.voiceRate) || 1.0;
+  utter.pitch = parseFloat(S.settings?.voicePitch) || 1.0;
+
+  const voices = window.speechSynthesis.getVoices();
+  if (S.settings?.aiVoice) {
+    const matched = voices.find(v => v.name === S.settings.aiVoice || v.voiceURI === S.settings.aiVoice);
+    if (matched) utter.voice = matched;
+  } else if (isHindi) {
+    const hiVoice = voices.find(v => v.lang.startsWith('hi') || v.lang.includes('IN'));
+    if (hiVoice) utter.voice = hiVoice;
+  }
+
+  const btn = $('#btnTestVoice');
+  if (btn) {
+    btn.innerHTML = `<span class="spinner"></span><span>Speaking…</span>`;
+    btn.disabled = true;
+  }
+
+  utter.onend = () => {
+    if (btn) {
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg><span>Test AI Voice</span>`;
+      btn.disabled = false;
+    }
+  };
+  utter.onerror = () => {
+    if (btn) {
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg><span>Test AI Voice</span>`;
+      btn.disabled = false;
+    }
+  };
+
+  window.speechSynthesis.speak(utter);
+}
+
+function populateVoiceSelect() {
+  const sel = $('#aiVoiceSelect');
+  if (!sel) return;
+  if (!('speechSynthesis' in window)) {
+    sel.innerHTML = '<option value="">Default Browser Synthesizer</option>';
+    return;
+  }
+  const voices = window.speechSynthesis.getVoices();
+  if (!voices.length) {
+    sel.innerHTML = '<option value="">Default System Synthesizer</option>';
+    window.speechSynthesis.onvoiceschanged = () => populateVoiceSelect();
+    return;
+  }
+
+  const isHindi = S.settings?.language === 'hi';
+  let html = '';
+  const matching = voices.filter(v => isHindi ? (v.lang.startsWith('hi') || v.lang.includes('IN')) : (v.lang.startsWith('en')));
+  const other = voices.filter(v => !matching.includes(v));
+
+  if (matching.length) {
+    html += `<optgroup label="${isHindi ? 'Recommended Hindi & Indian English Voices' : 'Recommended English Voices'}">`;
+    matching.forEach(v => {
+      const selected = (S.settings?.aiVoice && (v.name === S.settings.aiVoice || v.voiceURI === S.settings.aiVoice)) ? 'selected' : '';
+      html += `<option value="${esc(v.name)}" ${selected}>${esc(v.name)} (${esc(v.lang)})</option>`;
+    });
+    html += `</optgroup>`;
+  }
+
+  if (other.length) {
+    html += `<optgroup label="Other Available System Voices">`;
+    other.slice(0, 15).forEach(v => {
+      const selected = (S.settings?.aiVoice && (v.name === S.settings.aiVoice || v.voiceURI === S.settings.aiVoice)) ? 'selected' : '';
+      html += `<option value="${esc(v.name)}" ${selected}>${esc(v.name)} (${esc(v.lang)})</option>`;
+    });
+    html += `</optgroup>`;
+  }
+
+  sel.innerHTML = html;
+}
+
 
 async function api(path, opts = {}) {
   const { method = 'GET', body, ...rest } = opts;
@@ -1493,9 +1647,13 @@ function speakQuestion() {
   const q = S.item?.questions?.[S.idx];
   if (!q) return;
   const utter = new SpeechSynthesisUtterance(q);
-  utter.rate = 0.95;
-  utter.pitch = 1.0;
-  utter.lang = 'en-US';
+  utter.rate = parseFloat(S.settings?.voiceRate) || 0.95;
+  utter.pitch = parseFloat(S.settings?.voicePitch) || 1.0;
+  utter.lang = S.settings?.language === 'hi' ? 'hi-IN' : 'en-US';
+  if (S.settings?.aiVoice) {
+    const v = window.speechSynthesis.getVoices().find(x => x.name === S.settings.aiVoice || x.voiceURI === S.settings.aiVoice);
+    if (v) utter.voice = v;
+  }
   window.speechSynthesis.speak(utter);
 }
 
@@ -1739,7 +1897,7 @@ async function startListening() {
   if (Recognition && S.setup.microphone && S.stream?.getAudioTracks().length) {
     try {
       S.recognizer = new Recognition();
-      S.recognizer.lang = 'en-US';
+      S.recognizer.lang = S.settings?.language === 'hi' ? 'hi-IN' : 'en-US';
       S.recognizer.continuous = true;
       S.recognizer.interimResults = true;
       S.recognizer.onresult = e => {
@@ -3434,57 +3592,513 @@ async function sendCoachMessage(query) {
 }
 
 // -----------------------------------------------------------------------------
-// View 8: Settings
+// View 8: Settings (Preferences, Theme, Voice, Localization, Permissions)
 // -----------------------------------------------------------------------------
 function renderSettings() {
+  if (!S.settings) loadSettings();
+  const st = S.settings;
+  const isHi = st.language === 'hi';
+
   $('#view').innerHTML = `
     <div class="content">
-      <div class="view-header">
-        <div class="view-header-title">
-          <h1>Settings & Device Configuration</h1>
-          <p>Local hardware permissions, AI models, and storage governance.</p>
+      <div class="overview-header">
+        <div>
+          <h1 class="overview-title">Settings &amp; Workspace Preferences</h1>
+          <p class="overview-sub">Configure display themes, dynamic font scaling, local hardware permissions, language, and AI voice.</p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button class="btn-control-outline" id="btnResetSettings" type="button" style="height: 36px; font-size: 12px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path><path d="M3 22v-6h6"></path><path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path></svg>
+            <span>Reset to Default</span>
+          </button>
         </div>
       </div>
 
-      <div class="grid-2">
-        <div class="card-white">
-          <h3 style="font-size: 18px; font-weight: 700; margin-bottom: 14px;">Local Hardware Consents</h3>
-          <p style="font-size: 13px; color: var(--color-muted); line-height: 1.5; margin-bottom: 16px;">
-            Permissions are requested explicitly on a per-session basis. All video frames and audio remain local.
-          </p>
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--color-border);">
-              <span>Camera Stream</span>
-              <span class="pill-badge wash-green">Consented</span>
+      <div class="settings-grid">
+        <!-- 1. Day / Night Theme & Display Settings -->
+        <div class="card-white settings-card">
+          <div>
+            <div class="card-header-row" style="margin-bottom: 14px;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <div class="metric-icon-tile yellow" style="width: 40px; height: 40px; border-radius: 12px;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#212121" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                </div>
+                <div>
+                  <h3 class="card-title" style="font-size: 17px;">Day &amp; Night Theme</h3>
+                  <p class="card-sub">Select workspace color mode</p>
+                </div>
+              </div>
             </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--color-border);">
-              <span>Microphone Audio</span>
-              <span class="pill-badge wash-green">Consented</span>
+
+            <!-- Theme Options Grid -->
+            <div class="theme-options-grid" id="themeSelector">
+              <div class="theme-option-box ${st.theme === 'light' ? 'active' : ''}" data-theme-val="light">
+                <span class="theme-option-icon">☀️</span>
+                <span class="theme-option-label">Day (Light)</span>
+              </div>
+              <div class="theme-option-box ${st.theme === 'dark' ? 'active' : ''}" data-theme-val="dark">
+                <span class="theme-option-icon">🌙</span>
+                <span class="theme-option-label">Night (Dark)</span>
+              </div>
+              <div class="theme-option-box ${st.theme === 'auto' ? 'active' : ''}" data-theme-val="auto">
+                <span class="theme-option-icon">🌓</span>
+                <span class="theme-option-label">Auto (OS Sync)</span>
+              </div>
             </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--color-border);">
-              <span>On-device Face Presence (MediaPipe)</span>
-              <span class="pill-badge wash-plum">Optional</span>
+
+            <div style="border-top: 1px solid var(--color-border); margin: 18px 0;"></div>
+
+            <!-- Display Density -->
+            <div class="settings-control-row">
+              <div>
+                <div class="setting-item-name">Interface Spacing</div>
+                <div class="setting-item-desc">Adjust padding and layout spacing</div>
+              </div>
+              <div class="segmented-control-mini" id="densitySelector">
+                <button class="seg-btn-mini ${st.density === 'comfortable' ? 'active' : ''}" type="button" data-density="comfortable">Comfortable</button>
+                <button class="seg-btn-mini ${st.density === 'compact' ? 'active' : ''}" type="button" data-density="compact">Compact</button>
+              </div>
+            </div>
+
+            <!-- High Contrast -->
+            <div class="settings-control-row">
+              <div>
+                <div class="setting-item-name">High Contrast Mode</div>
+                <div class="setting-item-desc">Enhances text clarity and element borders</div>
+              </div>
+              <label class="switch-toggle">
+                <input type="checkbox" id="toggleHighContrast" ${st.highContrast ? 'checked' : ''}>
+                <span class="switch-slider"></span>
+              </label>
             </div>
           </div>
         </div>
 
-        <div class="card-white">
-          <h3 style="font-size: 18px; font-weight: 700; margin-bottom: 14px;">Artificial Intelligence</h3>
-          <p style="font-size: 13px; color: var(--color-muted); line-height: 1.5; margin-bottom: 14px;">
-            Gemini provides real-time question generation and diagnostic scoring.
-          </p>
-          <div style="font-size: 13px; color: var(--color-muted); margin-bottom: 14px;">
-            Status: <strong style="color: var(--color-ink);">${S.health.ai_configured ? 'Connected' : 'Offline / Template'}</strong><br/>
-            Model: <strong style="color: var(--color-ink);">${esc(S.health.model || 'gemini-2.5-flash')}</strong>
+        <!-- 2. Typography & Font Size -->
+        <div class="card-white settings-card">
+          <div>
+            <div class="card-header-row" style="margin-bottom: 14px;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <div class="metric-icon-tile lavender" style="width: 40px; height: 40px; border-radius: 12px; background: var(--color-lav); color: var(--color-plum);">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg>
+                </div>
+                <div>
+                  <h3 class="card-title" style="font-size: 17px;">Typography &amp; Font Size</h3>
+                  <p class="card-sub">Dynamic font scaling across the application</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Font size options -->
+            <div class="font-size-options-grid" id="fontSizeSelector">
+              <div class="font-size-option-card ${st.fontSize === 'small' ? 'active' : ''}" data-font-val="small">
+                <span style="font-size: 14px; font-weight: 800; color: var(--color-ink);">Aa</span>
+                <span style="font-size: 12px; font-weight: 700; color: var(--color-plum);">Small (13px)</span>
+              </div>
+              <div class="font-size-option-card ${st.fontSize === 'medium' ? 'active' : ''}" data-font-val="medium">
+                <span style="font-size: 18px; font-weight: 800; color: var(--color-ink);">Aa</span>
+                <span style="font-size: 12px; font-weight: 700; color: var(--color-plum);">Medium (Default)</span>
+              </div>
+              <div class="font-size-option-card ${st.fontSize === 'large' ? 'active' : ''}" data-font-val="large">
+                <span style="font-size: 22px; font-weight: 800; color: var(--color-ink);">Aa</span>
+                <span style="font-size: 12px; font-weight: 700; color: var(--color-plum);">Large (17px)</span>
+              </div>
+            </div>
+
+            <!-- Dynamic Live Preview -->
+            <div class="font-preview-box">
+              <div style="font-size: 14px; font-weight: 700; color: var(--color-ink); margin-bottom: 4px;">Live Typography Preview</div>
+              <p style="font-size: 13px; color: var(--color-muted); line-height: 1.5;">
+                "Walk through your end-to-end design process when solving complex ambiguous workflows."
+              </p>
+            </div>
           </div>
-          <div class="info-banner">API keys are protected on the server side and never sent to the browser.</div>
+        </div>
+
+        <!-- 3. Language & Localization (Hindi / English) -->
+        <div class="card-white settings-card">
+          <div>
+            <div class="card-header-row" style="margin-bottom: 14px;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <div class="metric-icon-tile mint" style="width: 40px; height: 40px; border-radius: 12px; background: #e4f6ed; color: #1e664e;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                </div>
+                <div>
+                  <h3 class="card-title" style="font-size: 17px;">Language &amp; Localization</h3>
+                  <p class="card-sub">Choose application &amp; voice language</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="lang-cards-grid" id="langSelector">
+              <div class="lang-card ${st.language === 'en' ? 'active' : ''}" data-lang="en">
+                <div style="font-size: 26px; margin-bottom: 6px;">🇬🇧</div>
+                <div style="font-size: 15px; font-weight: 700; color: var(--color-ink);">English</div>
+                <div style="font-size: 11px; color: var(--color-muted); margin-top: 3px;">Standard English questions &amp; critique</div>
+              </div>
+              <div class="lang-card ${st.language === 'hi' ? 'active' : ''}" data-lang="hi">
+                <div style="font-size: 26px; margin-bottom: 6px;">🇮🇳</div>
+                <div style="font-size: 15px; font-weight: 700; color: var(--color-ink);">हिंदी (Hindi)</div>
+                <div style="font-size: 11px; color: var(--color-muted); margin-top: 3px;">द्विभाषी साक्षात्कार अभ्यास एवं सुझाव</div>
+              </div>
+            </div>
+
+            <div style="margin-top: 14px; background: var(--color-wash); border-radius: 12px; padding: 12px 14px; font-size: 12px; color: var(--color-muted); line-height: 1.5; border: 1px solid var(--color-border);" id="langExplainText">
+              ${isHi ? 'हिंदी का चयन किया गया है। एआई कोच आपको हिंदी और हिंग्लिश में सहायता प्रदान करेगा तथा वॉयस रिकॉग्निशन हिंदी इनपुट को स्वीकार करेगा।' : 'English is selected. Spoken answers and AI Coach feedback will operate in standard international English.'}
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. AI Voice & Speech Synthesis -->
+        <div class="card-white settings-card">
+          <div>
+            <div class="card-header-row" style="margin-bottom: 14px;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <div class="metric-icon-tile yellow" style="width: 40px; height: 40px; border-radius: 12px;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#212121" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+                </div>
+                <div>
+                  <h3 class="card-title" style="font-size: 17px;">AI Interviewer Voice</h3>
+                  <p class="card-sub">Text-to-speech engine and audio playback</p>
+                </div>
+              </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 14px;">
+              <div>
+                <label style="font-size: 12px; font-weight: 700; color: var(--color-ink); display: block; margin-bottom: 6px;">Select Voice Profile</label>
+                <select id="aiVoiceSelect" class="settings-select-custom"></select>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                <div>
+                  <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; margin-bottom: 6px;">
+                    <span>Speaking Speed</span>
+                    <span id="voiceSpeedVal">${st.voiceRate || 1.0}x</span>
+                  </div>
+                  <input type="range" id="voiceSpeedRange" min="0.75" max="1.35" step="0.05" value="${st.voiceRate || 1.0}" class="settings-range-slider" />
+                </div>
+                <div>
+                  <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; margin-bottom: 6px;">
+                    <span>Voice Pitch</span>
+                    <span id="voicePitchVal">${st.voicePitch || 1.0}</span>
+                  </div>
+                  <input type="range" id="voicePitchRange" min="0.8" max="1.2" step="0.05" value="${st.voicePitch || 1.0}" class="settings-range-slider" />
+                </div>
+              </div>
+
+              <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 10px; border-top: 1px solid var(--color-border);">
+                <span style="font-size: 12px; color: var(--color-muted);">Listen to sample speech:</span>
+                <button class="btn-hero-primary" id="btnTestVoice" type="button" style="height: 36px; padding: 0 16px; font-size: 12px;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+                  <span>Test AI Voice</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. Local Hardware Permissions & Toggles -->
+        <div class="card-white settings-card" style="grid-column: 1 / -1;">
+          <div>
+            <div class="card-header-row" style="margin-bottom: 14px;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <div class="metric-icon-tile peach" style="width: 40px; height: 40px; border-radius: 12px; background: #ffebe3; color: #9c4221;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                </div>
+                <div>
+                  <h3 class="card-title" style="font-size: 17px;">Local Hardware &amp; Privacy Consents</h3>
+                  <p class="card-sub">Per-session permissions for media processing and heuristic tracking</p>
+                </div>
+              </div>
+              <button class="btn-control-outline" id="btnTestAllHardware" type="button" style="height: 34px; font-size: 12px;">
+                <span>Test Devices Now</span>
+              </button>
+            </div>
+
+            <div class="permissions-toggle-grid">
+              <!-- Camera -->
+              <div class="permission-item-box">
+                <div class="permission-item-left">
+                  <div class="perm-icon-bubble">📷</div>
+                  <div>
+                    <div class="perm-title">Camera Stream</div>
+                    <div class="perm-desc">Video frames used for in-session preview and local composite recording</div>
+                  </div>
+                </div>
+                <label class="switch-toggle">
+                  <input type="checkbox" id="permCamera" ${st.permissions.camera ? 'checked' : ''}>
+                  <span class="switch-slider"></span>
+                </label>
+              </div>
+
+              <!-- Microphone -->
+              <div class="permission-item-box">
+                <div class="permission-item-left">
+                  <div class="perm-icon-bubble">🎙️</div>
+                  <div>
+                    <div class="perm-title">Microphone Audio</div>
+                    <div class="perm-desc">Voice answer capture, real-time speech recognition, and audio meter</div>
+                  </div>
+                </div>
+                <label class="switch-toggle">
+                  <input type="checkbox" id="permMic" ${st.permissions.microphone ? 'checked' : ''}>
+                  <span class="switch-slider"></span>
+                </label>
+              </div>
+
+              <!-- Screen Share -->
+              <div class="permission-item-box">
+                <div class="permission-item-left">
+                  <div class="perm-icon-bubble">🖥️</div>
+                  <div>
+                    <div class="perm-title">Screen Capture</div>
+                    <div class="perm-desc">Browser desktop, application, or window sharing during design walkthroughs</div>
+                  </div>
+                </div>
+                <label class="switch-toggle">
+                  <input type="checkbox" id="permScreen" ${st.permissions.screen ? 'checked' : ''}>
+                  <span class="switch-slider"></span>
+                </label>
+              </div>
+
+              <!-- Face Tracking -->
+              <div class="permission-item-box">
+                <div class="permission-item-left">
+                  <div class="perm-icon-bubble">👤</div>
+                  <div>
+                    <div class="perm-title">On-Device Face Tracking</div>
+                    <div class="perm-desc">Local MediaPipe face mesh presence and head orientation heuristics</div>
+                  </div>
+                </div>
+                <label class="switch-toggle">
+                  <input type="checkbox" id="permFace" ${st.permissions.face ? 'checked' : ''}>
+                  <span class="switch-slider"></span>
+                </label>
+              </div>
+
+              <!-- Secondary Mobile Camera -->
+              <div class="permission-item-box">
+                <div class="permission-item-left">
+                  <div class="perm-icon-bubble">📱</div>
+                  <div>
+                    <div class="perm-title">Secondary Camera Pairing</div>
+                    <div class="perm-desc">Mobile phone auxiliary WebRTC video pairing for side-angle view</div>
+                  </div>
+                </div>
+                <label class="switch-toggle">
+                  <input type="checkbox" id="permSecondary" ${st.permissions.secondary ? 'checked' : ''}>
+                  <span class="switch-slider"></span>
+                </label>
+              </div>
+
+              <!-- Adaptive Questioning -->
+              <div class="permission-item-box">
+                <div class="permission-item-left">
+                  <div class="perm-icon-bubble">✨</div>
+                  <div>
+                    <div class="perm-title">Gemini AI Adaptive Questions</div>
+                    <div class="perm-desc">Generates dynamic follow-ups based on candidate response context</div>
+                  </div>
+                </div>
+                <label class="switch-toggle">
+                  <input type="checkbox" id="permAdaptive" ${S.setup.adaptive !== false ? 'checked' : ''}>
+                  <span class="switch-slider"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. AI Model Configuration Status -->
+        <div class="card-white settings-card" style="grid-column: 1 / -1;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="pill-badge wash-green" style="font-size: 11px;">ACTIVE BACKEND</span>
+                <h3 class="card-title" style="font-size: 17px; margin: 0;">Artificial Intelligence Engine</h3>
+              </div>
+              <p class="card-sub" style="margin-top: 4px;">Gemini 2.5 Flash provides real-time question generation, behavioral critique, and diagnostic scoring.</p>
+            </div>
+            <div style="display: flex; gap: 12px; align-items: center;">
+              <span class="pill-badge wash-plum" style="font-size: 12px;">Model: gemini-2.5-flash</span>
+              <span class="pill-badge wash-green" style="font-size: 12px;">Connected</span>
+            </div>
+          </div>
+          <div style="margin-top: 14px; background: var(--color-wash); border-radius: 12px; padding: 10px 14px; font-size: 11px; color: var(--color-muted); border: 1px solid var(--color-border);">
+            API keys and models are protected securely on the local Python server and never transmitted to the browser.
+          </div>
         </div>
       </div>
     </div>
   `;
+
+  // Bind Voice Selection Options
+  populateVoiceSelect();
+
+  // 1. Theme selection event handlers
+  document.querySelectorAll('#themeSelector .theme-option-box').forEach(box => {
+    box.addEventListener('click', () => {
+      document.querySelectorAll('#themeSelector .theme-option-box').forEach(b => b.classList.remove('active'));
+      box.classList.add('active');
+      const val = box.dataset.themeVal;
+      S.settings.theme = val;
+      saveSettings();
+      toast(`Theme set to ${val === 'dark' ? 'Night (Dark)' : val === 'light' ? 'Day (Light)' : 'Auto System'}`);
+    });
+  });
+
+  // 2. Density selection event handlers
+  document.querySelectorAll('#densitySelector .seg-btn-mini').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#densitySelector .seg-btn-mini').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const val = btn.dataset.density;
+      S.settings.density = val;
+      saveSettings();
+      toast(`Layout density set to ${val}`);
+    });
+  });
+
+  // 3. High Contrast toggle
+  $('#toggleHighContrast')?.addEventListener('change', e => {
+    S.settings.highContrast = e.target.checked;
+    saveSettings();
+    toast(`High contrast ${e.target.checked ? 'enabled' : 'disabled'}`);
+  });
+
+  // 4. Font Size selection event handlers
+  document.querySelectorAll('#fontSizeSelector .font-size-option-card').forEach(card => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('#fontSizeSelector .font-size-option-card').forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      const val = card.dataset.fontVal;
+      S.settings.fontSize = val;
+      saveSettings();
+      toast(`Font size updated to ${val.charAt(0).toUpperCase() + val.slice(1)}`);
+    });
+  });
+
+  // 5. Language selection event handlers
+  document.querySelectorAll('#langSelector .lang-card').forEach(card => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('#langSelector .lang-card').forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      const lang = card.dataset.lang;
+      S.settings.language = lang;
+      saveSettings();
+      populateVoiceSelect();
+      const explain = $('#langExplainText');
+      if (explain) {
+        explain.textContent = lang === 'hi'
+          ? 'हिंदी का चयन किया गया है। एआई कोच आपको हिंदी और हिंग्लिश में सहायता प्रदान करेगा तथा वॉयस रिकॉग्निशन हिंदी इनपुट को स्वीकार करेगा।'
+          : 'English is selected. Spoken answers and AI Coach feedback will operate in standard international English.';
+      }
+      toast(`Language changed to ${lang === 'hi' ? 'हिंदी (Hindi)' : 'English'}`);
+    });
+  });
+
+  // 6. Voice Sliders & Test
+  $('#voiceSpeedRange')?.addEventListener('input', e => {
+    S.settings.voiceRate = parseFloat(e.target.value);
+    $('#voiceSpeedVal').textContent = S.settings.voiceRate.toFixed(2) + 'x';
+    saveSettings();
+  });
+
+  $('#voicePitchRange')?.addEventListener('input', e => {
+    S.settings.voicePitch = parseFloat(e.target.value);
+    $('#voicePitchVal').textContent = S.settings.voicePitch.toFixed(2);
+    saveSettings();
+  });
+
+  $('#aiVoiceSelect')?.addEventListener('change', e => {
+    S.settings.aiVoice = e.target.value;
+    saveSettings();
+  });
+
+  $('#btnTestVoice')?.addEventListener('click', () => {
+    testAiVoice();
+  });
+
+  // 7. Hardware Permissions Toggles
+  $('#permCamera')?.addEventListener('change', e => {
+    S.settings.permissions.camera = e.target.checked;
+    S.setup.camera = e.target.checked;
+    saveSettings();
+    toast(`Camera access ${e.target.checked ? 'granted' : 'disabled'}`);
+  });
+
+  $('#permMic')?.addEventListener('change', e => {
+    S.settings.permissions.microphone = e.target.checked;
+    S.setup.microphone = e.target.checked;
+    saveSettings();
+    toast(`Microphone audio ${e.target.checked ? 'granted' : 'disabled'}`);
+  });
+
+  $('#permScreen')?.addEventListener('change', e => {
+    S.settings.permissions.screen = e.target.checked;
+    S.setup.screen = e.target.checked;
+    saveSettings();
+    toast(`Screen capture ${e.target.checked ? 'granted' : 'disabled'}`);
+  });
+
+  $('#permFace')?.addEventListener('change', e => {
+    S.settings.permissions.face = e.target.checked;
+    S.setup.face = e.target.checked;
+    saveSettings();
+    toast(`Face tracking ${e.target.checked ? 'enabled' : 'disabled'}`);
+  });
+
+  $('#permSecondary')?.addEventListener('change', e => {
+    S.settings.permissions.secondary = e.target.checked;
+    S.setup.secondary = e.target.checked;
+    saveSettings();
+    toast(`Secondary camera pairing ${e.target.checked ? 'enabled' : 'disabled'}`);
+  });
+
+  $('#permAdaptive')?.addEventListener('change', e => {
+    S.setup.adaptive = e.target.checked;
+    toast(`AI adaptive question generation ${e.target.checked ? 'enabled' : 'disabled'}`);
+  });
+
+  // Test Devices Now button
+  $('#btnTestAllHardware')?.addEventListener('click', async () => {
+    const btn = $('#btnTestAllHardware');
+    busy(btn, true, 'Testing…');
+    try {
+      await checkDevices();
+    } finally {
+      busy(btn, false);
+    }
+  });
+
+  // Reset settings
+  $('#btnResetSettings')?.addEventListener('click', () => {
+    if (confirm('Reset all preferences to default settings?')) {
+      S.settings = {
+        theme: 'light',
+        density: 'comfortable',
+        highContrast: false,
+        fontSize: 'medium',
+        language: 'en',
+        aiVoice: '',
+        voiceRate: 1.0,
+        voicePitch: 1.0,
+        permissions: {
+          camera: true,
+          microphone: true,
+          screen: true,
+          face: true,
+          secondary: false
+        }
+      };
+      saveSettings();
+      renderSettings();
+      toast('Preferences restored to defaults.');
+    }
+  });
 }
 
-// -----------------------------------------------------------------------------
 // View 9: Profile (Student Candidate Brahmi)
 // -----------------------------------------------------------------------------
 function renderProfile() {
@@ -3691,6 +4305,7 @@ async function signOut() {
 // App Initialization & Global Event Listeners
 // -----------------------------------------------------------------------------
 async function initialize() {
+  loadSettings();
   // Update dynamic date
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
