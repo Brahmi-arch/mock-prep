@@ -1,3 +1,4 @@
+import { rIcon, R_ICON } from './radix-icons.js?v=33';
 // MockPrep — AI Interview Studio
 // Design System: Urbanist typography, #F6F6FA canvas, #FDFEFF cards, #212121 ink, #D7D7F4 lavender
 
@@ -30,23 +31,7 @@ function formatMarkdown(text) {
   return html;
 }
 
-// Radix / Figma SVG Icons
-const R_ICON = {
-  plus: `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 2.75C8 2.47386 7.77614 2.25 7.5 2.25C7.22386 2.25 7 2.47386 7 2.75V7H2.75C2.47386 7 2.25 7.22386 2.25 7.5C2.25 7.77614 2.47386 8 2.75 8H7V12.25C7 12.5261 7.22386 12.75 7.5 12.75C7.77614 12.75 8 12.5261 8 12.25V8H12.25C12.5261 8 12.75 7.77614 12.75 7.5C12.75 7.22386 12.5261 7 12.25 7H8V2.75Z" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"/></svg>`,
-  arrowRight: `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.14645 3.14645C8.34171 2.95118 8.65829 2.95118 8.85355 3.14645L12.8536 7.14645C13.0488 7.34171 13.0488 7.65829 12.8536 7.85355L8.85355 11.8536C8.65829 12.0488 8.34171 12.0488 8.14645 11.8536C7.95118 11.6583 7.95118 11.3417 8.14645 11.1464L11.2929 8H2.5C2.22386 8 2 7.77614 2 7.5C2 7.22386 2.22386 7 2.5 7H11.2929L8.14645 3.85355C7.95118 3.65829 7.95118 3.34171 8.14645 3.14645Z" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"/></svg>`,
-  check: `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M11.4669 3.72684C11.7558 3.97448 11.7853 4.40827 11.5327 4.69715L6.53267 10.6972C6.40428 10.844 6.21639 10.9298 6.01824 10.9327C5.82008 10.9356 5.63007 10.8553 5.49845 10.7119L3.49845 8.21191C3.25301 7.91717 3.29221 7.48427 3.58695 7.23883C3.88168 6.99339 4.31458 7.03259 4.56002 7.32733L6.00287 8.94828L10.4966 3.79259C10.7492 3.50371 11.178 3.4792 11.4669 3.72684Z" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"/></svg>`,
-  camera: `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2.5 3C1.67157 3 1 3.67157 1 4.5V11.5C1 12.3284 1.67157 13 2.5 13H12.5C13.3284 13 14 12.3284 14 11.5V4.5C14 3.67157 13.3284 3 12.5 3H10.8536L9.64645 1.79289C9.45892 1.60536 9.20456 1.5 8.93934 1.5H6.06066C5.79544 1.5 5.54108 1.60536 5.35355 1.79289L4.14645 3H2.5ZM2.5 4H4.5C4.63261 4 4.75979 3.94732 4.85355 3.85355L6.06066 2.64645C6.15442 2.55268 6.2816 2.5 6.41421 2.5H8.58579C8.71839 2.5 8.84558 2.55268 8.93934 2.64645L10.1464 3.85355C10.2402 3.94732 10.3674 4 10.5 4H12.5C12.7761 4 13 4.22386 13 4.5V11.5C13 11.7761 12.7761 12 12.5 12H2.5C2.22386 12 2 11.7761 2 11.5V4.5C2 4.22386 2.22386 4 2.5 4ZM7.5 5.5C6.11929 5.5 5 6.61929 5 8C5 9.38071 6.11929 10.5 7.5 10.5C8.88071 10.5 10 9.38071 10 8C10 6.61929 8.88071 5.5 7.5 5.5ZM6 8C6 7.17157 6.67157 6.5 7.5 6.5C8.32843 6.5 9 7.17157 9 8C9 8.82843 8.32843 9.5 7.5 9.5C6.67157 9.5 6 8.82843 6 8Z" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"/></svg>`,
-  trash: `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5.5 1C5.22386 1 5 1.22386 5 1.5C5 1.77614 5.22386 2 5.5 2H9.5C9.77614 2 10 1.77614 10 1.5C10 1.22386 9.77614 1 9.5 1H5.5ZM3 3.5C3 3.22386 3.22386 3 3.5 3H11.5C11.7761 3 12 3.22386 12 3.5C12 3.77614 11.7761 4 11.5 4H11V12C11 12.5523 10.5523 13 10 13H5C4.44772 13 4 12.5523 4 12V4H3.5C3.22386 4 3 3.77614 3 3.5ZM5 4V12H10V4H5ZM6.5 5.5C6.77614 5.5 7 5.72386 7 6V10.5C7 10.7761 6.77614 11 6.5 11C6.22386 11 6 10.7761 6 10.5V6C6 5.72386 6.22386 5.5 6.5 5.5ZM8.5 5.5C8.77614 5.5 9 5.72386 9 6V10.5C9 10.7761 8.77614 11 8.5 11C8.22386 11 8 10.7761 8 10.5V6C8 5.72386 8.22386 5.5 8.5 5.5Z" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"/></svg>`,
-  download: `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7.5 1C7.77614 1 8 1.22386 8 1.5V8.29289L9.64645 6.64645C9.84171 6.45118 10.1583 6.45118 10.3536 6.64645C10.5488 6.84171 10.5488 7.15829 10.3536 7.35355L7.85355 9.85355C7.65829 10.0488 7.34171 10.0488 7.14645 9.85355L4.64645 7.35355C4.45118 7.15829 4.45118 6.84171 4.64645 6.64645C4.84171 6.45118 5.15829 6.45118 5.35355 6.64645L7 8.29289V1.5C7 1.22386 7.22386 1 7.5 1ZM2.5 10C2.77614 10 3 10.2239 3 10.5V12.5C3 12.7761 3.22386 13 3.5 13H11.5C11.7761 13 12 12.7761 12 12.5V10.5C12 10.2239 12.2239 10 12.5 10C12.7761 10 13 10.2239 13 10.5V12.5C13 13.3284 12.3284 14 11.5 14H3.5C2.67157 14 2 13.3284 2 12.5V10.5C2 10.2239 2.22386 10 2.5 10Z" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"/></svg>`,
-  sparkle: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"></path></svg>`,
-  shield: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>`,
-  speaker: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>`,
-  mic: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" x2="12" y1="19" y2="22"></line></svg>`,
-  stop: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2" ry="2"></rect></svg>`,
-  refresh: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path><path d="M3 22v-6h6"></path><path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path></svg>`,
-  pause: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect></svg>`,
-  play: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`
-};
+// R_ICON provided by radix-icons.js
 
 const S = {
   me: null, health: {}, history: [], view: 'dashboard', item: null, idx: 0,
@@ -180,13 +165,13 @@ function testAiVoice() {
 
   utter.onend = () => {
     if (btn) {
-      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg><span>Test AI Voice</span>`;
+      btn.innerHTML = `${rIcon("speaker", 14)}<span>Test AI Voice</span>`;
       btn.disabled = false;
     }
   };
   utter.onerror = () => {
     if (btn) {
-      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg><span>Test AI Voice</span>`;
+      btn.innerHTML = `${rIcon("speaker", 14)}<span>Test AI Voice</span>`;
       btn.disabled = false;
     }
   };
@@ -352,7 +337,7 @@ function renderDashboard() {
           <div class="hero-actions">
             <button class="btn-hero-primary" id="btnStartPracticeHero" type="button">
               <span>Start a practice session</span>
-              <img src="/static/assets/3c6a6.svg" width="18" height="18" alt="→" />
+              ${rIcon("arrowRight", 16)}
             </button>
             <span class="hero-link" id="btnPacePracticeHero" role="button" tabindex="0">Set your own pace</span>
           </div>
@@ -371,7 +356,7 @@ function renderDashboard() {
             <p class="overview-sub">See how often you practice and how your scores are changing.</p>
           </div>
           <div class="overview-date-pill">
-            <img src="/static/assets/e3b6a.svg" width="17" height="17" alt="" />
+            ${rIcon("speaker", 16)}
             <span>12–18 November</span>
           </div>
         </div>
@@ -381,7 +366,7 @@ function renderDashboard() {
           <div class="metric-card">
             <div class="metric-card-top">
               <div class="metric-icon-tile lav">
-                <img src="/static/assets/1aa9a.svg" width="18" height="18" alt="" />
+                ${rIcon("target", 18)}
               </div>
               <span class="metric-label">Latest score</span>
             </div>
@@ -395,7 +380,7 @@ function renderDashboard() {
           <div class="metric-card">
             <div class="metric-card-top">
               <div class="metric-icon-tile teal">
-                <img src="/static/assets/9e058.svg" width="18" height="18" alt="" />
+                ${rIcon("play", 18)}
               </div>
               <span class="metric-label">Sessions</span>
             </div>
@@ -409,7 +394,7 @@ function renderDashboard() {
           <div class="metric-card">
             <div class="metric-card-top">
               <div class="metric-icon-tile yellow">
-                <img src="/static/assets/2a669.svg" width="18" height="18" alt="" />
+                ${rIcon("stopwatch", 18)}
               </div>
               <span class="metric-label">Practice time</span>
             </div>
@@ -564,14 +549,14 @@ function renderDashboard() {
               </div>
               <button class="btn-control-outline" id="btnViewReportFeedback" type="button">
                 <span>View full report</span>
-                <img src="/static/assets/ea296.svg" width="18" height="18" alt="↗" />
+                ${rIcon("arrowTopRight", 14)}
               </button>
             </div>
 
             <div class="feedback-boxes-row">
               <div class="feedback-box">
                 <div class="feedback-box-top">
-                  <img src="/static/assets/0325a.svg" width="19" height="19" alt="" />
+                  ${rIcon("barChart", 18)}
                   <span>Lowest-scoring skill</span>
                 </div>
                 <div class="feedback-box-skill plum">Answer structure</div>
@@ -580,7 +565,7 @@ function renderDashboard() {
 
               <div class="feedback-box">
                 <div class="feedback-box-top">
-                  <img src="/static/assets/7b6a7.svg" width="19" height="19" alt="" />
+                  ${rIcon("activity", 18)}
                   <span>Improved in the last session</span>
                 </div>
                 <div class="feedback-box-skill green">Speaking pace</div>
@@ -590,7 +575,7 @@ function renderDashboard() {
           </div>
 
           <div class="feedback-next-step">
-            <img src="/static/assets/5a506.svg" width="18" height="18" alt="" />
+            ${rIcon("pencil2", 18)}
             <span class="next-step-label">Next step:</span>
             <span class="next-step-text">End your next answer with what changed and how you know.</span>
           </div>
@@ -601,7 +586,7 @@ function renderDashboard() {
           <div class="mood-card-header">
             <div class="mood-title-wrap">
               <div class="mood-icon-tile">
-                <img src="/static/assets/7bcaf.svg" width="20" height="20" alt="😊" />
+                ${rIcon("face", 18)}
               </div>
               <h3 class="card-title" style="margin: 0;">Mood check-in</h3>
             </div>
@@ -631,7 +616,7 @@ function renderDashboard() {
           <div>
             <button class="btn-control-outline plum" id="btnUpdateMoodModal" type="button">
               <span>Update mood</span>
-              <img src="/static/assets/4327e.svg" width="18" height="18" alt="→" />
+              ${rIcon("arrowRight", 14)}
             </button>
           </div>
         </div>
@@ -648,7 +633,7 @@ function renderDashboard() {
             </div>
             <button class="btn-control-outline" id="btnAllSessions" type="button">
               <span>All sessions</span>
-              <img src="/static/assets/3c6a6.svg" width="18" height="18" alt="→" />
+              ${rIcon("arrowRight", 16)}
             </button>
           </div>
 
@@ -657,7 +642,7 @@ function renderDashboard() {
             <div class="practice-row-item" data-action="practice-item" data-id="ui-ux">
               <div class="practice-row-left">
                 <div class="practice-type-tile">
-                  <img src="/static/assets/ff95a.svg" width="20" height="20" alt="🎙" />
+                  ${rIcon("speaker", 20)}
                 </div>
                 <div class="practice-title-meta">
                   <span class="practice-title">UI/UX mock interview</span>
@@ -666,7 +651,7 @@ function renderDashboard() {
               </div>
               <div class="practice-row-right">
                 <span class="practice-score">82 / 100</span>
-                <img src="/static/assets/e255f.svg" width="17" height="17" alt="↗" />
+                ${rIcon("arrowTopRight", 14)}
               </div>
             </div>
 
@@ -674,7 +659,7 @@ function renderDashboard() {
             <div class="practice-row-item" data-action="practice-item" data-id="hci">
               <div class="practice-row-left">
                 <div class="practice-type-tile">
-                  <img src="/static/assets/0c4dd.svg" width="20" height="20" alt="📖" />
+                  ${rIcon("reader", 20)}
                 </div>
                 <div class="practice-title-meta">
                   <span class="practice-title">HCI viva practice</span>
@@ -683,7 +668,7 @@ function renderDashboard() {
               </div>
               <div class="practice-row-right">
                 <span class="practice-score">74 / 100</span>
-                <img src="/static/assets/e255f.svg" width="17" height="17" alt="↗" />
+                ${rIcon("arrowTopRight", 14)}
               </div>
             </div>
 
@@ -691,7 +676,7 @@ function renderDashboard() {
             <div class="practice-row-item" data-action="practice-item" data-id="case-study">
               <div class="practice-row-left">
                 <div class="practice-type-tile">
-                  <img src="/static/assets/e2a5e.svg" width="20" height="20" alt="🖥" />
+                  ${rIcon("desktop", 20)}
                 </div>
                 <div class="practice-title-meta">
                   <span class="practice-title">Case study presentation</span>
@@ -700,7 +685,7 @@ function renderDashboard() {
               </div>
               <div class="practice-row-right">
                 <span class="practice-score">68 / 100</span>
-                <img src="/static/assets/e255f.svg" width="17" height="17" alt="↗" />
+                ${rIcon("arrowTopRight", 14)}
               </div>
             </div>
           </div>
@@ -711,7 +696,7 @@ function renderDashboard() {
           <div class="ai-card-top">
             <div class="ai-title-wrap">
               <div class="ai-icon-tile">
-                <img src="/static/assets/dd36d.svg" width="20" height="20" alt="✨" />
+                ${rIcon("magicWand", 20)}
               </div>
               <h3 class="card-title" style="margin: 0;">AI insights</h3>
             </div>
@@ -736,7 +721,7 @@ function renderDashboard() {
           <div class="ai-input-bar">
             <input type="text" id="aiCoachQuickInput" placeholder="Ask the AI Coach…" />
             <button class="btn-ai-send" id="btnAiCoachSend" type="button" title="Send to AI Coach">
-              <img src="/static/assets/6f2ab.svg" width="20" height="20" alt="Send" />
+              ${rIcon("arrowUp", 16)}
             </button>
           </div>
         </div>
@@ -957,12 +942,12 @@ async function askCoachQuick(query) {
 // View 2: Prepare (Practice)
 // -----------------------------------------------------------------------------
 const PERM_ICONS = {
-  camera: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>`,
-  microphone: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" x2="12" y1="19" y2="22"></line></svg>`,
-  screen: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"></rect><line x1="8" x2="16" y1="21" y2="21"></line><line x1="12" x2="12" y1="17" y2="21"></line></svg>`,
-  face: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"></circle><path d="M20 21a8 8 0 0 0-16 0"></path></svg>`,
-  record: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="4" fill="currentColor"></circle></svg>`,
-  secondary: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"></rect><line x1="12" x2="12.01" y1="18" y2="18"></line></svg>`
+  camera: rIcon('camera', 18),
+  microphone: rIcon('speaker', 18),
+  screen: rIcon('desktop', 18),
+  face: rIcon('eyeOpen', 18),
+  record: rIcon('video', 18),
+  secondary: rIcon('mobile', 18)
 };
 
 function permissionCard(name, title, desc) {
@@ -1009,7 +994,7 @@ function renderPrepare() {
                 <p class="card-sub">Interview context and complexity</p>
               </div>
               <div class="metric-icon-tile yellow" style="width: 36px; height: 36px; border-radius: 10px;">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#212121" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="21" y2="21"></line><line x1="4" x2="20" y1="14" y2="14"></line><line x1="4" x2="20" y1="7" y2="7"></line></svg>
+                ${rIcon("mixer", 18)}
               </div>
             </div>
 
@@ -1031,9 +1016,7 @@ function renderPrepare() {
             <div class="form-group-custom">
               <label class="form-label-custom" for="topic">Target role or topic</label>
               <div class="input-with-icon">
-                <span class="input-icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
-                </span>
+                <span class="input-icon">${rIcon("magnifyingGlass", 16)}</span>
                 <input id="topic" class="input-field-custom" maxlength="180" value="${esc(u.topic)}" placeholder="e.g. UI/UX Designer" />
               </div>
             </div>
@@ -1045,9 +1028,7 @@ function renderPrepare() {
                   <select id="difficulty" class="select-field-custom">
                     ${['Beginner', 'Intermediate', 'Advanced'].map(x => `<option ${u.difficulty === x ? 'selected' : ''}>${x}</option>`).join('')}
                   </select>
-                  <div class="select-chevron">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                  </div>
+                  <div class="select-chevron">${rIcon("chevronDown", 12)}</div>
                 </div>
               </div>
 
@@ -1057,9 +1038,7 @@ function renderPrepare() {
                   <select id="questionCount" class="select-field-custom">
                     ${[3, 4, 5, 6, 7, 8].map(n => `<option value="${n}" ${u.question_count === n ? 'selected' : ''}>${n} questions</option>`).join('')}
                   </select>
-                  <div class="select-chevron">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                  </div>
+                  <div class="select-chevron">${rIcon("chevronDown", 12)}</div>
                 </div>
               </div>
             </div>
@@ -1067,7 +1046,7 @@ function renderPrepare() {
             <label class="adaptive-toggle-card">
               <div class="adaptive-left">
                 <div class="adaptive-icon-tile">
-                  ${R_ICON.sparkle || '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"></path></svg>'}
+                  ${rIcon("magicWand", 16)}
                 </div>
                 <div>
                   <div class="adaptive-title">Adaptive follow-up questions</div>
@@ -1088,8 +1067,8 @@ function renderPrepare() {
                 <h3 class="card-title">Device permissions</h3>
                 <p class="card-sub">Local recording and tracking consent</p>
               </div>
-              <div class="metric-icon-tile teal" style="width: 36px; height: 36px; border-radius: 10px;">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#212121" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+              <div class="metric-icon-tile teal" style="width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                ${rIcon("shield", 18)}
               </div>
             </div>
 
@@ -1103,9 +1082,7 @@ function renderPrepare() {
             </div>
 
             <div class="privacy-banner">
-              <span class="privacy-banner-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-              </span>
+              <span class="privacy-banner-icon">${rIcon("shield", 18)}</span>
               <span>All media streams are processed locally on your machine. Hardware permissions may be withdrawn at any time during practice.</span>
             </div>
           </div>
@@ -1125,9 +1102,7 @@ function renderPrepare() {
 
             <div class="device-preview-box-custom" id="preparePreview">
               <div class="camera-placeholder">
-                <div class="camera-placeholder-icon">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                </div>
+                <div class="camera-placeholder-icon">${rIcon("camera", 28)}</div>
                 <span class="camera-placeholder-text">Camera uninitialized</span>
                 <span class="camera-placeholder-sub">Click "Verify devices" below to preview stream</span>
               </div>
@@ -1145,8 +1120,8 @@ function renderPrepare() {
           <!-- Card 4: AI Status & Start Session CTA -->
           <div class="card-white launch-card">
             <div class="launch-ai-banner ${S.health.ai_configured ? '' : 'warning'}">
-              <div class="metric-icon-tile yellow" style="width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#212121" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"></path></svg>
+              <div class="metric-icon-tile yellow" style="width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
+                ${rIcon("lightning", 16)}
               </div>
               <div style="font-size: 13px; font-weight: 600; color: var(--color-ink); line-height: 1.4;">
                 ${S.health.ai_configured ? 'Gemini 2.5 Flash connected. Dynamic questions and coaching enabled.' : 'Gemini key unconfigured. Standard template questions and rule-based feedback enabled.'}
@@ -1155,7 +1130,7 @@ function renderPrepare() {
 
             <button class="btn-practice-launch" data-action="start">
               <span>Start practice session</span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+            ${rIcon("arrowRight", 16)}
             </button>
           </div>
         </div>
@@ -1229,9 +1204,7 @@ function attachVideo(host, sourceId) {
   } else {
     host.innerHTML = `
       <div class="camera-placeholder">
-        <div class="camera-placeholder-icon">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-        </div>
+        <div class="camera-placeholder-icon">${rIcon("camera", 28)}</div>
         <span class="camera-placeholder-text">Camera feed inactive</span>
         <span class="camera-placeholder-sub">Click "Verify devices" to reconnect</span>
       </div>
@@ -1378,7 +1351,7 @@ function renderRoom() {
 
         <div style="display: flex; align-items: center; gap: 12px;">
           <div class="room-timer-pill" id="timer">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            ${rIcon("stopwatch", 14)}
             <span>00:00</span>
           </div>
 
@@ -1430,19 +1403,18 @@ function renderRoom() {
                 <span>Candidate Camera</span>
               </span>
               <div id="cameraPlaceholder" class="video-cell-placeholder hidden">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+            ${rIcon("camera", 24)}
                 <span>Camera stream inactive</span>
               </div>
             </div>
 
             <div class="video-cell-card">
               <video id="previewScreen" muted autoplay playsinline></video>
-              <span class="video-cell-tag">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="20" height="14" x="2" y="3" rx="2"></rect><line x1="8" x2="16" y1="21" y2="21"></line><line x1="12" x2="12" y1="17" y2="21"></line></svg>
+              <span class="video-cell-tag">${rIcon("video", 12)}
                 <span>Screen Capture</span>
               </span>
               <div id="screenPlaceholder" class="video-cell-placeholder hidden">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="14" x="2" y="3" rx="2"></rect><line x1="8" x2="16" y1="21" y2="21"></line><line x1="12" x2="12" y1="17" y2="21"></line></svg>
+            ${rIcon("desktop", 24)}
                 <span>Screen share inactive</span>
               </div>
             </div>
@@ -2748,7 +2720,7 @@ async function renderReport() {
           <div class="report-metric-top">
             <span class="report-metric-label">Overall score</span>
             <div class="metric-icon-tile yellow" style="width: 32px; height: 32px; border-radius: 10px;">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#212121" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+              ${rIcon("starFilled", 16)}
             </div>
           </div>
           <div>
@@ -2761,7 +2733,7 @@ async function renderReport() {
           <div class="report-metric-top">
             <span class="report-metric-label">Speaking pace</span>
             <div class="metric-icon-tile teal" style="width: 32px; height: 32px; border-radius: 10px;">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#212121" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" x2="12" y1="19" y2="22"></line></svg>
+              ${rIcon("mixer", 16)}
             </div>
           </div>
           <div>
@@ -2773,8 +2745,8 @@ async function renderReport() {
         <div class="report-metric-card">
           <div class="report-metric-top">
             <span class="report-metric-label">Active duration</span>
-            <div class="metric-icon-tile lavender" style="width: 32px; height: 32px; border-radius: 10px; background: var(--color-lav);">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38325a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            <div class="metric-icon-tile lavender" style="width: 32px; height: 32px; border-radius: 10px; background: var(--color-lav); color: var(--color-plum);">
+              ${rIcon("stopwatch", 16)}
             </div>
           </div>
           <div>
@@ -2786,8 +2758,8 @@ async function renderReport() {
         <div class="report-metric-card">
           <div class="report-metric-top">
             <span class="report-metric-label">Audit events</span>
-            <div class="metric-icon-tile" style="width: 32px; height: 32px; border-radius: 10px; background: var(--color-wash);">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38325a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+            <div class="metric-icon-tile" style="width: 32px; height: 32px; border-radius: 10px; background: var(--color-wash); color: var(--color-plum);">
+              ${rIcon("activity", 16)}
             </div>
           </div>
           <div>
@@ -2813,7 +2785,7 @@ async function renderReport() {
               <div class="q-item q-accordion-item ${idx === 0 ? 'expanded' : ''}" data-action="toggle-q-detail">
                 <div class="q-accordion-header">
                   <span>${esc(item.title)}</span>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+                  ${rIcon("chevronDown", 12)}
                 </div>
                 <div class="q-accordion-verdict">${esc(clip(item.feedback, 55))}</div>
                 <div class="q-accordion-detail">
@@ -2927,7 +2899,7 @@ function renderHistory() {
           <div class="report-metric-top">
             <span class="report-metric-label">Total sessions</span>
             <div class="metric-icon-tile teal" style="width: 32px; height: 32px; border-radius: 10px;">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#212121" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+              ${rIcon("mixer", 16)}
             </div>
           </div>
           <div>
@@ -2939,8 +2911,8 @@ function renderHistory() {
         <div class="report-metric-card">
           <div class="report-metric-top">
             <span class="report-metric-label">Completed</span>
-            <div class="metric-icon-tile lavender" style="width: 32px; height: 32px; border-radius: 10px; background: var(--color-lav);">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38325a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+            <div class="metric-icon-tile lavender" style="width: 32px; height: 32px; border-radius: 10px; background: var(--color-lav); color: var(--color-plum);">
+              ${rIcon("stopwatch", 16)}
             </div>
           </div>
           <div>
@@ -2953,7 +2925,7 @@ function renderHistory() {
           <div class="report-metric-top">
             <span class="report-metric-label">Avg response rating</span>
             <div class="metric-icon-tile yellow" style="width: 32px; height: 32px; border-radius: 10px;">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#212121" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+              ${rIcon("starFilled", 16)}
             </div>
           </div>
           <div>
@@ -2985,7 +2957,7 @@ function sessionTableHtml(items) {
     return `
       <div style="padding: 48px 24px; text-align: center; color: var(--color-muted);">
         <div style="width: 48px; height: 48px; border-radius: 14px; background: var(--color-wash); display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; color: var(--color-plum);">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+          ${rIcon("reader", 24)}
         </div>
         <p style="font-weight: 700; color: var(--color-ink); margin-bottom: 4px;">No practice sessions recorded yet</p>
         <p style="font-size: 13px;">Complete your first practice session to generate structured evaluation reports.</p>
@@ -2995,8 +2967,8 @@ function sessionTableHtml(items) {
   return items.map(s => `
     <div class="history-session-row">
       <div class="history-session-left">
-        <div class="metric-icon-tile ${s.state === 'complete' ? 'teal' : 'yellow'}" style="width: 40px; height: 40px; border-radius: 12px;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#212121" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" x2="12" y1="19" y2="22"></line></svg>
+        <div class="metric-icon-tile ${s.state === 'complete' ? 'teal' : 'yellow'}" style="width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+          ${rIcon("speaker", 18)}
         </div>
         <div>
           <div class="history-session-title">${esc(clip(s.topic || 'UI/UX Designer', 45))}</div>
@@ -3011,7 +2983,7 @@ function sessionTableHtml(items) {
         </span>
         <button class="btn-control-outline" data-action="open-session" data-id="${s.id}" style="height: 38px; padding: 0 14px; font-size: 13px;">
           <span>${s.state === 'complete' ? 'View report' : 'Resume'}</span>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+          ${rIcon("arrowRight", 14)}
         </button>
       </div>
     </div>
@@ -3165,7 +3137,7 @@ function renderLibrary() {
           <p class="overview-sub">Curated UI/UX mock interview questions, design scenarios, and behavioral prompt templates.</p>
         </div>
         <div class="pill-badge wash-plum">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right: 6px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              ${rIcon("checkCircled", 12)}
           ${libraryItems.length} curated prompts
         </div>
       </div>
@@ -3183,9 +3155,7 @@ function renderLibrary() {
           </div>
 
           <div class="library-search-box">
-            <span class="library-search-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
-            </span>
+            <span class="library-search-icon">${rIcon("magnifyingGlass", 16)}</span>
             <input id="libSearchInput" placeholder="Search prompts or keywords…" autocomplete="off" />
           </div>
         </div>
@@ -3204,31 +3174,20 @@ function renderLibrary() {
   `;
 
   function getCategorySvg(cat) {
-    if (cat === 'Process') {
-      return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"></path><polyline points="10 6 14 10 10 14"></polyline></svg>`;
-    }
-    if (cat === 'Strategy') {
-      return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>`;
-    }
-    if (cat === 'Usability') {
-      return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
-    }
-    if (cat === 'Edge Cases') {
-      return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 22 22 22 12 2"></polygon><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
-    }
-    if (cat === 'Systems') {
-      return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>`;
-    }
-    // Behavioral
-    return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`;
+    if (cat === 'Process') return rIcon('activity', 20);
+    if (cat === 'Strategy') return rIcon('target', 20);
+    if (cat === 'Usability') return rIcon('eyeOpen', 20);
+    if (cat === 'Edge Cases') return rIcon('component', 20);
+    if (cat === 'Systems') return rIcon('tokens', 20);
+    return rIcon('chatBubble', 20);
   }
 
   function renderLibCards(items) {
     if (!items.length) {
       return `
         <div style="grid-column: 1 / -1; padding: 64px 20px; text-align: center; background: #ffffff; border-radius: 20px; border: 1px solid var(--color-border);">
-          <div class="metric-icon-tile wash" style="width: 48px; height: 48px; border-radius: 14px; margin: 0 auto 12px; background: var(--color-wash);">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+          <div class="metric-icon-tile wash" style="width: 48px; height: 48px; border-radius: 14px; margin: 0 auto 12px; background: var(--color-wash); display: flex; align-items: center; justify-content: center;">
+            ${rIcon("magnifyingGlass", 20)}
           </div>
           <h3 style="font-size: 16px; font-weight: 700; color: var(--color-ink); margin-bottom: 6px;">No prompt templates found</h3>
           <p style="font-size: 13px; color: var(--color-muted);">Try searching for a different keyword or select another category filter.</p>
@@ -3258,7 +3217,7 @@ function renderLibrary() {
           </div>
           <button class="library-practice-btn" type="button" data-action="practice-lib-q" data-topic="${esc(item.title)}">
             <span>Practice this prompt</span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+            ${rIcon("arrowRight", 14)}
           </button>
         </div>
       </div>
@@ -3337,8 +3296,8 @@ function renderCoach() {
           <div style="display: flex; flex-direction: column; height: 100%; min-height: 0;">
             <div class="card-header-row" style="border-bottom: 1px solid var(--color-border); padding-bottom: 14px; margin-bottom: 12px; flex-shrink: 0;">
               <div style="display: flex; align-items: center; gap: 12px;">
-                <div class="metric-icon-tile yellow" style="width: 40px; height: 40px; border-radius: 12px;">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#212121" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"></path></svg>
+                <div class="metric-icon-tile yellow" style="width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                  ${rIcon("magicWand", 20)}
                 </div>
                 <div>
                   <h3 class="card-title" style="font-size: 18px;">AI Design Mentor</h3>
@@ -3360,7 +3319,7 @@ function renderCoach() {
               <div class="ai-input-bar">
                 <input type="text" id="coachPageInput" placeholder="Ask your coach anything about UI/UX interviews, frameworks, or feedback…" autocomplete="off" />
                 <button class="btn-ai-send" id="btnCoachPageSend" type="button" aria-label="Send message">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5"><path d="M12 19V5"></path><path d="m5 12 7-7 7 7"></path></svg>
+                  ${rIcon("arrowUp", 16)}
                 </button>
               </div>
             </div>
@@ -3487,8 +3446,8 @@ function renderCoachChatThread() {
           <div class="chat-suggestions-row">
             ${msg.suggestions.map(s => `
               <button class="chat-suggestion-chip" type="button" data-action="coach-suggestion" data-msg="${esc(s)}">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"></path></svg>
-                <span>${esc(s)}</span>
+              ${rIcon("magicWand", 12)}
+              <span>${esc(s)}</span>
               </button>
             `).join('')}
           </div>
@@ -3497,9 +3456,7 @@ function renderCoachChatThread() {
 
       html += `
         <div class="chat-msg-row coach">
-          <div class="chat-avatar coach">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#212121" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"></path></svg>
-          </div>
+          <div class="chat-avatar coach">${rIcon("magicWand", 18)}</div>
           <div class="chat-bubble-coach">
             <div class="chat-bubble-header">
               <span class="chat-sender-name">AI Design Mentor</span>
@@ -3516,9 +3473,7 @@ function renderCoachChatThread() {
   if (S.coachTyping) {
     html += `
       <div class="chat-msg-row coach">
-        <div class="chat-avatar coach">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#212121" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"></path></svg>
-        </div>
+        <div class="chat-avatar coach">${rIcon("magicWand", 18)}</div>
         <div class="chat-bubble-coach typing">
           <div class="chat-bubble-header">
             <span class="chat-sender-name">AI Design Mentor</span>
@@ -3608,7 +3563,7 @@ function renderSettings() {
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
           <button class="btn-control-outline" id="btnResetSettings" type="button" style="height: 36px; font-size: 12px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path><path d="M3 22v-6h6"></path><path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path></svg>
+            ${rIcon("reset", 14)}
             <span>Reset to Default</span>
           </button>
         </div>
@@ -3620,8 +3575,8 @@ function renderSettings() {
           <div>
             <div class="card-header-row" style="margin-bottom: 14px;">
               <div style="display: flex; align-items: center; gap: 12px;">
-                <div class="metric-icon-tile yellow" style="width: 40px; height: 40px; border-radius: 12px;">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#212121" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                <div class="metric-icon-tile yellow" style="width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                  ${rIcon("sun", 20)}
                 </div>
                 <div>
                   <h3 class="card-title" style="font-size: 17px;">Day &amp; Night Theme</h3>
@@ -3633,15 +3588,15 @@ function renderSettings() {
             <!-- Theme Options Grid -->
             <div class="theme-options-grid" id="themeSelector">
               <div class="theme-option-box ${st.theme === 'light' ? 'active' : ''}" data-theme-val="light">
-                <span class="theme-option-icon">☀️</span>
+                <span class="theme-option-icon">${rIcon("sun", 22)}</span>
                 <span class="theme-option-label">Day (Light)</span>
               </div>
               <div class="theme-option-box ${st.theme === 'dark' ? 'active' : ''}" data-theme-val="dark">
-                <span class="theme-option-icon">🌙</span>
+                <span class="theme-option-icon">${rIcon("moon", 22)}</span>
                 <span class="theme-option-label">Night (Dark)</span>
               </div>
               <div class="theme-option-box ${st.theme === 'auto' ? 'active' : ''}" data-theme-val="auto">
-                <span class="theme-option-icon">🌓</span>
+                <span class="theme-option-icon">${rIcon("half", 22)}</span>
                 <span class="theme-option-label">Auto (OS Sync)</span>
               </div>
             </div>
@@ -3679,8 +3634,8 @@ function renderSettings() {
           <div>
             <div class="card-header-row" style="margin-bottom: 14px;">
               <div style="display: flex; align-items: center; gap: 12px;">
-                <div class="metric-icon-tile lavender" style="width: 40px; height: 40px; border-radius: 12px; background: var(--color-lav); color: var(--color-plum);">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg>
+                <div class="metric-icon-tile lavender" style="width: 40px; height: 40px; border-radius: 12px; background: var(--color-lav); color: var(--color-plum); display: flex; align-items: center; justify-content: center;">
+                  ${rIcon("fontSize", 20)}
                 </div>
                 <div>
                   <h3 class="card-title" style="font-size: 17px;">Typography &amp; Font Size</h3>
@@ -3692,15 +3647,15 @@ function renderSettings() {
             <!-- Font size options -->
             <div class="font-size-options-grid" id="fontSizeSelector">
               <div class="font-size-option-card ${st.fontSize === 'small' ? 'active' : ''}" data-font-val="small">
-                <span style="font-size: 14px; font-weight: 800; color: var(--color-ink);">Aa</span>
+                <span style="display: flex; align-items: center; justify-content: center; height: 26px;">${rIcon("letterCase", 16)}</span>
                 <span style="font-size: 12px; font-weight: 700; color: var(--color-plum);">Small (13px)</span>
               </div>
               <div class="font-size-option-card ${st.fontSize === 'medium' ? 'active' : ''}" data-font-val="medium">
-                <span style="font-size: 18px; font-weight: 800; color: var(--color-ink);">Aa</span>
+                <span style="display: flex; align-items: center; justify-content: center; height: 26px;">${rIcon("letterCase", 20)}</span>
                 <span style="font-size: 12px; font-weight: 700; color: var(--color-plum);">Medium (Default)</span>
               </div>
               <div class="font-size-option-card ${st.fontSize === 'large' ? 'active' : ''}" data-font-val="large">
-                <span style="font-size: 22px; font-weight: 800; color: var(--color-ink);">Aa</span>
+                <span style="display: flex; align-items: center; justify-content: center; height: 26px;">${rIcon("letterCase", 24)}</span>
                 <span style="font-size: 12px; font-weight: 700; color: var(--color-plum);">Large (17px)</span>
               </div>
             </div>
@@ -3720,8 +3675,8 @@ function renderSettings() {
           <div>
             <div class="card-header-row" style="margin-bottom: 14px;">
               <div style="display: flex; align-items: center; gap: 12px;">
-                <div class="metric-icon-tile mint" style="width: 40px; height: 40px; border-radius: 12px; background: #e4f6ed; color: #1e664e;">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                <div class="metric-icon-tile mint" style="width: 40px; height: 40px; border-radius: 12px; background: #e4f6ed; color: #1e664e; display: flex; align-items: center; justify-content: center;">
+                  ${rIcon("globe", 20)}
                 </div>
                 <div>
                   <h3 class="card-title" style="font-size: 17px;">Language &amp; Localization</h3>
@@ -3732,12 +3687,12 @@ function renderSettings() {
 
             <div class="lang-cards-grid" id="langSelector">
               <div class="lang-card ${st.language === 'en' ? 'active' : ''}" data-lang="en">
-                <div style="font-size: 26px; margin-bottom: 6px;">🇬🇧</div>
+                <div style="margin-bottom: 6px; display: flex; align-items: center; justify-content: center; color: var(--color-plum);">${rIcon("globe", 26)}</div>
                 <div style="font-size: 15px; font-weight: 700; color: var(--color-ink);">English</div>
                 <div style="font-size: 11px; color: var(--color-muted); margin-top: 3px;">Standard English questions &amp; critique</div>
               </div>
               <div class="lang-card ${st.language === 'hi' ? 'active' : ''}" data-lang="hi">
-                <div style="font-size: 26px; margin-bottom: 6px;">🇮🇳</div>
+                <div style="margin-bottom: 6px; display: flex; align-items: center; justify-content: center; color: var(--color-plum);">${rIcon("globe", 26)}</div>
                 <div style="font-size: 15px; font-weight: 700; color: var(--color-ink);">हिंदी (Hindi)</div>
                 <div style="font-size: 11px; color: var(--color-muted); margin-top: 3px;">द्विभाषी साक्षात्कार अभ्यास एवं सुझाव</div>
               </div>
@@ -3754,8 +3709,8 @@ function renderSettings() {
           <div>
             <div class="card-header-row" style="margin-bottom: 14px;">
               <div style="display: flex; align-items: center; gap: 12px;">
-                <div class="metric-icon-tile yellow" style="width: 40px; height: 40px; border-radius: 12px;">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#212121" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+                <div class="metric-icon-tile yellow" style="width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                  ${rIcon("speaker", 20)}
                 </div>
                 <div>
                   <h3 class="card-title" style="font-size: 17px;">AI Interviewer Voice</h3>
@@ -3790,7 +3745,7 @@ function renderSettings() {
               <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 10px; border-top: 1px solid var(--color-border);">
                 <span style="font-size: 12px; color: var(--color-muted);">Listen to sample speech:</span>
                 <button class="btn-hero-primary" id="btnTestVoice" type="button" style="height: 36px; padding: 0 16px; font-size: 12px;">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+                  ${rIcon("play", 14)}
                   <span>Test AI Voice</span>
                 </button>
               </div>
@@ -3803,8 +3758,8 @@ function renderSettings() {
           <div>
             <div class="card-header-row" style="margin-bottom: 14px;">
               <div style="display: flex; align-items: center; gap: 12px;">
-                <div class="metric-icon-tile peach" style="width: 40px; height: 40px; border-radius: 12px; background: #ffebe3; color: #9c4221;">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                <div class="metric-icon-tile peach" style="width: 40px; height: 40px; border-radius: 12px; background: #ffebe3; color: #9c4221; display: flex; align-items: center; justify-content: center;">
+                  ${rIcon("shield", 20)}
                 </div>
                 <div>
                   <h3 class="card-title" style="font-size: 17px;">Local Hardware &amp; Privacy Consents</h3>
@@ -3820,7 +3775,7 @@ function renderSettings() {
               <!-- Camera -->
               <div class="permission-item-box">
                 <div class="permission-item-left">
-                  <div class="perm-icon-bubble">📷</div>
+                  <div class="perm-icon-bubble">${rIcon("camera", 18)}</div>
                   <div>
                     <div class="perm-title">Camera Stream</div>
                     <div class="perm-desc">Video frames used for in-session preview and local composite recording</div>
@@ -3835,7 +3790,7 @@ function renderSettings() {
               <!-- Microphone -->
               <div class="permission-item-box">
                 <div class="permission-item-left">
-                  <div class="perm-icon-bubble">🎙️</div>
+                  <div class="perm-icon-bubble">${rIcon("speaker", 18)}</div>
                   <div>
                     <div class="perm-title">Microphone Audio</div>
                     <div class="perm-desc">Voice answer capture, real-time speech recognition, and audio meter</div>
@@ -3850,7 +3805,7 @@ function renderSettings() {
               <!-- Screen Share -->
               <div class="permission-item-box">
                 <div class="permission-item-left">
-                  <div class="perm-icon-bubble">🖥️</div>
+                  <div class="perm-icon-bubble">${rIcon("desktop", 18)}</div>
                   <div>
                     <div class="perm-title">Screen Capture</div>
                     <div class="perm-desc">Browser desktop, application, or window sharing during design walkthroughs</div>
@@ -3865,7 +3820,7 @@ function renderSettings() {
               <!-- Face Tracking -->
               <div class="permission-item-box">
                 <div class="permission-item-left">
-                  <div class="perm-icon-bubble">👤</div>
+                  <div class="perm-icon-bubble">${rIcon("eyeOpen", 18)}</div>
                   <div>
                     <div class="perm-title">On-Device Face Tracking</div>
                     <div class="perm-desc">Local MediaPipe face mesh presence and head orientation heuristics</div>
@@ -3880,7 +3835,7 @@ function renderSettings() {
               <!-- Secondary Mobile Camera -->
               <div class="permission-item-box">
                 <div class="permission-item-left">
-                  <div class="perm-icon-bubble">📱</div>
+                  <div class="perm-icon-bubble">${rIcon("mobile", 18)}</div>
                   <div>
                     <div class="perm-title">Secondary Camera Pairing</div>
                     <div class="perm-desc">Mobile phone auxiliary WebRTC video pairing for side-angle view</div>
@@ -3895,7 +3850,7 @@ function renderSettings() {
               <!-- Adaptive Questioning -->
               <div class="permission-item-box">
                 <div class="permission-item-left">
-                  <div class="perm-icon-bubble">✨</div>
+                  <div class="perm-icon-bubble">${rIcon("magicWand", 18)}</div>
                   <div>
                     <div class="perm-title">Gemini AI Adaptive Questions</div>
                     <div class="perm-desc">Generates dynamic follow-ups based on candidate response context</div>

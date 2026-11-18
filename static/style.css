@@ -177,15 +177,29 @@ button {
 }
 
 .nav-item.active .nav-icon {
-  filter: brightness(0.2);
+  color: var(--color-ink);
 }
 
 .nav-icon {
-  width: 20px;
-  height: 20px;
-  display: flex;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  color: inherit;
+}
+
+svg.nav-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  fill: currentColor;
+}
+
+.radix-icon {
+  display: inline-block;
+  vertical-align: middle;
   flex-shrink: 0;
 }
 
