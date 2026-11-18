@@ -389,6 +389,22 @@ async def supabase_session_login(body: SupabaseSessionInput, response: Response)
     set_token(response, uid)
     return {"id": uid, "name": name, "email": email}
 
+@app.post("/api/auth/guest")
+def guest_login(response: Response):
+    with db() as c:
+        row = c.execute("SELECT id, name FROM users WHERE email='brahmi@mockprep.studio'").fetchone()
+        if row:
+            uid = row["id"]
+        else:
+            cur = c.execute(
+                "INSERT INTO users(name, email, password_hash, created_at) VALUES (?,?,?,?)",
+                ("Brahmi", "brahmi@mockprep.studio", "guest:student", utc())
+            )
+            uid = cur.lastrowid
+    set_token(response, uid)
+    return {"id": uid, "name": "Brahmi", "email": "brahmi@mockprep.studio"}
+
+
 
 def set_token(response: Response, uid: int):
     value = secrets.token_urlsafe(32)
@@ -413,6 +429,31 @@ def me(request: Request):
     with db() as c:
         u = c.execute("SELECT id,name,email FROM users WHERE id=?", (uid,)).fetchone()
     return dict(u)
+
+class CoachInput(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+
+@app.post("/api/coach/ask")
+async def coach_ask(request: Request, body: CoachInput):
+    if GEMINI_KEY:
+        try:
+            prompt = f"""You are an encouraging and expert UI/UX design interview coach.
+The candidate asked: "{body.message}"
+Provide actionable, structured coaching advice with examples, focusing on the STAR framework (Situation, Task, Action, Result) and UI/UX design principles.
+Return JSON only: {{"reply": "your advice here", "suggestions": ["Try a STAR answer", "Give me a question", "How do I explain trade-offs?"]}}"""
+            res = await gemini(prompt)
+            if isinstance(res, dict) and "reply" in res:
+                return res
+        except Exception:
+            pass
+    return {
+        "reply": f"When approaching '{body.message}', structure your response with clarity:\n\n"
+                 "• **Situation & Task**: Briefly establish the project scope, user problem, and your core responsibility.\n"
+                 "• **Action**: Explain your design methods—user testing, wireframing, edge case considerations, and cross-functional decisions.\n"
+                 "• **Result**: Quantify outcomes where possible (e.g., improved task completion, reduced error rates) and what you learned.",
+        "suggestions": ["Try a STAR answer", "Give me a question", "How do I explain trade-offs?"]
+    }
+
 
 SAMPLE_QUESTIONS = [
     "Tell me about yourself and what motivated you to become a UI/UX designer.",
@@ -866,11 +907,34 @@ async def ws_room(ws: WebSocket, iid: str, role: str):
         if not room:
             rooms.pop(iid, None)
 
+def is_allowed_origin(origin: str, base_url: str) -> bool:
+    if not origin:
+        return True
+    try:
+        from urllib.parse import urlparse
+        o = urlparse(origin)
+        b = urlparse(base_url)
+        o_port = o.port or (443 if o.scheme == "https" else 80)
+        b_port = b.port or (443 if b.scheme == "https" else 80)
+        if o_port != b_port:
+            return False
+        local_hosts = {"localhost", "127.0.0.1", "0.0.0.0"}
+        if o.hostname in local_hosts and b.hostname in local_hosts:
+            return True
+        return o.hostname == b.hostname
+    except Exception:
+        return False
+
 @app.middleware("http")
 async def protect_mutations(request: Request, call_next):
-    # Strict same-origin check on authenticated mutating endpoints for local use.
+    # Same-origin check on mutating endpoints for local use.
     if request.url.path.startswith("/api/") and request.method in {"POST", "PUT", "PATCH", "DELETE"}:
         origin = request.headers.get("origin")
-        if origin and origin.rstrip("/") != str(request.base_url).rstrip("/"):
+        if origin and not is_allowed_origin(origin, str(request.base_url)):
             return JSONResponse(status_code=403, content={"detail": "Cross-origin request refused"})
-    return await call_next(request)
+    response = await call_next(request)
+    if request.url.path == "/" or request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
