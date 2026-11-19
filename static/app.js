@@ -1,4 +1,4 @@
-import { rIcon, R_ICON } from './radix-icons.js?v=33';
+import { rIcon, R_ICON } from './radix-icons.js?v=36';
 // MockPrep — AI Interview Studio
 // Design System: Urbanist typography, #F6F6FA canvas, #FDFEFF cards, #212121 ink, #D7D7F4 lavender
 
@@ -6,6 +6,11 @@ const $ = (sel) => document.querySelector(sel);
 const esc = (value='') => String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 const fmtTime = (s) => `${Math.floor(Math.max(s,0)/60).toString().padStart(2,'0')}:${Math.floor(Math.max(s,0)%60).toString().padStart(2,'0')}`;
 const niceDate = (iso) => new Date(iso).toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'});
+const shortDate = (iso) => {
+  if (!iso) return 'Recent';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? 'Recent' : d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+};
 const draftGet = (key) => { try { return sessionStorage.getItem(key) || ''; } catch { return ''; } };
 const draftSet = (key, v) => { try { sessionStorage.setItem(key, v); } catch {} };
 const draftDel = (key) => { try { sessionStorage.removeItem(key); } catch {} };
@@ -47,7 +52,7 @@ const S = {
   stream: null, screenStream: null, secondStream: null, remoteStream: null, recorder: null, recChunks: [],
   audioRecorder: null, audioChunks: [], recognizer: null, answering: false, liveText: '', edited: false, answerStarted: 0,
   startTime: 0, elapsedAccum: 0, timerId: null, drawFrame: null, faceModel: null, faceInterval: null,
-  faceState: { count: null, direction: '—', gaze: '—', since: 0, key: null },
+  faceState: { count: null, direction: '—', gaze: '—', pitch: '—', since: 0, key: 'normal', alertActive: false, loggedAlert: false, lastAlertSound: 0 },
   audioCtx: null, analyser: null, sessionLive: false, events: [], lastEvent: {}, ws: null, peer: null,
   toastTimer: null, recorderError: false, loading: false, audioQuietSince: 0, paused: false,
   videoMime: 'video/webm', transcriptionOrigin: '', uiNote: '',
@@ -313,15 +318,294 @@ function setView(view) {
 // -----------------------------------------------------------------------------
 // View 1: Dashboard (Figma Node 105:166)
 // -----------------------------------------------------------------------------
+
+const CMA_MOODS = {
+  'Calm': { x: 92, y: 62, desc: 'Pleasant · Low energy', quad: 'br' },
+  'Focused': { x: 80, y: 52, desc: 'Pleasant · Optimal flow', quad: 'br' },
+  'Confident': { x: 90, y: 24, desc: 'Pleasant · High energy', quad: 'tr' },
+  'Excited': { x: 102, y: 16, desc: 'Pleasant · High activation', quad: 'tr' },
+  'Reflective': { x: 36, y: 60, desc: 'Thoughtful · Low energy', quad: 'bl' },
+  'Tense': { x: 32, y: 22, desc: 'High energy · Pressured', quad: 'tl' }
+};
+
+function getMoodCoord(state) {
+  return CMA_MOODS[state] || CMA_MOODS['Calm'];
+}
+
+function updateMood(state) {
+  const data = getMoodCoord(state);
+  S.mood.state = state;
+  S.mood.energyDesc = data.desc;
+  S.mood.date = 'Self-reported · Just now';
+  try {
+    localStorage.setItem('mockprep_user_mood', JSON.stringify(S.mood));
+  } catch {}
+
+  const stEl = $('#moodStateWord');
+  const descEl = $('#moodEnergyDesc');
+  const dateEl = $('#moodMetaDate');
+  if (stEl) stEl.textContent = state;
+  if (descEl) descEl.textContent = data.desc;
+  if (dateEl) dateEl.textContent = S.mood.date;
+
+  const dot = $('#cmaDotGroup');
+  if (dot) dot.style.transform = `translate(${data.x}px, ${data.y}px)`;
+
+  const qRect = $('#cmaQuadrantHighlight');
+  if (qRect) {
+    if (data.quad === 'br') {
+      qRect.setAttribute('x', '60.5'); qRect.setAttribute('y', '42');
+      qRect.setAttribute('fill', '#D7D7F4');
+    } else if (data.quad === 'tr') {
+      qRect.setAttribute('x', '60.5'); qRect.setAttribute('y', '6');
+      qRect.setAttribute('fill', '#D7D7F4');
+    } else if (data.quad === 'tl') {
+      qRect.setAttribute('x', '6.5'); qRect.setAttribute('y', '6');
+      qRect.setAttribute('fill', '#F5D7D7');
+    } else {
+      qRect.setAttribute('x', '6.5'); qRect.setAttribute('y', '42');
+      qRect.setAttribute('fill', '#E7E5EF');
+    }
+  }
+
+  toast(`Mood updated to ${state} (${data.desc})`);
+}
+
 function renderDashboard() {
-  const complete = S.history.filter(x => x.state === 'complete');
-  const scored = complete.filter(x => Number.isFinite(x.report?.overall));
-  const latestScore = scored.length ? Math.round(scored[0].report.overall) : 82;
-  const sessionsCount = S.history.length || 3;
-  const practiceMin = complete.reduce((acc, x) => {
+  const complete = (S.history || []).filter(x => x.state === 'complete');
+  const scored = complete.filter(x => x.report && Number.isFinite(x.report.overall));
+  const latestScored = scored[0] || null;
+  const latestSession = complete[0] || (S.history && S.history[0]) || null;
+  const latestScore = latestScored ? Math.round(latestScored.report.overall) : 82;
+
+  // Compute delta vs previous scored session
+  let deltaStr = '+8 pts vs. previous';
+  let deltaClass = 'wash-green';
+  if (scored.length >= 2) {
+    const delta = Math.round(scored[0].report.overall - scored[1].report.overall);
+    deltaStr = `${delta >= 0 ? '+' : ''}${delta} pts vs. previous`;
+    deltaClass = delta >= 0 ? 'wash-green' : 'wash-plum';
+  } else if (scored.length === 1) {
+    deltaStr = 'Baseline established';
+  }
+
+  // Rolling 7-day date window
+  const now = new Date();
+  const sevenDaysAgo = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+  const dateRangeStr = `${sevenDaysAgo.getDate()}–${now.getDate()} ${now.toLocaleDateString('en-US', { month: 'long' })}`;
+
+  // Sessions in last 7 days
+  const recentSessions = (S.history || []).filter(x => {
+    if (!x.created_at) return true;
+    const t = new Date(x.created_at).getTime();
+    return t >= (sevenDaysAgo.getTime() - 24 * 60 * 60 * 1000);
+  });
+  const sessionsCount = recentSessions.length || (S.history && S.history.length) || 3;
+
+  // Practice minutes in last 7 days
+  let practiceMin = complete.reduce((acc, x) => {
     const ansDur = (x.answers || []).reduce((t, a) => t + (a.duration || 0), 0);
     return acc + Math.round(ansDur / 60);
-  }, 0) || 30;
+  }, 0);
+  if (!practiceMin) practiceMin = 30;
+
+  // 1. Score trend data points (last 4 scored sessions)
+  let trendData = [];
+  if (scored.length >= 4) {
+    trendData = scored.slice(0, 4).reverse().map(s => ({
+      id: s.id,
+      score: Math.round(s.report.overall),
+      dateStr: shortDate(s.created_at),
+      topic: s.topic || s.role || 'Practice session'
+    }));
+  } else if (scored.length > 0) {
+    const baselines = [
+      { id: 'starter_case_2', score: 64, dateStr: '8 Nov', topic: 'Initial portfolio review' },
+      { id: 'starter_case_2', score: 68, dateStr: '12 Nov', topic: 'Case study presentation' },
+      { id: 'starter_hci_2', score: 74, dateStr: '14 Nov', topic: 'HCI viva practice' },
+      { id: 'starter_uiux_2', score: 82, dateStr: '17 Nov', topic: 'UI/UX mock interview' }
+    ];
+    const realPts = scored.slice().reverse().map(s => ({
+      id: s.id,
+      score: Math.round(s.report.overall),
+      dateStr: shortDate(s.created_at),
+      topic: s.topic || s.role || 'Practice session'
+    }));
+    const needed = Math.max(0, 4 - realPts.length);
+    trendData = [...baselines.slice(0, needed), ...realPts].slice(-4);
+  } else {
+    trendData = [
+      { id: 'starter_case_2', score: 64, dateStr: '8 Nov', topic: 'Initial portfolio review' },
+      { id: 'starter_case_2', score: 68, dateStr: '12 Nov', topic: 'Case study presentation' },
+      { id: 'starter_hci_2', score: 74, dateStr: '14 Nov', topic: 'HCI viva practice' },
+      { id: 'starter_uiux_2', score: 82, dateStr: '17 Nov', topic: 'UI/UX mock interview' }
+    ];
+  }
+
+  const xCoords = [90, 250, 410, 565];
+  const trendPoints = trendData.map((pt, i) => {
+    const x = xCoords[i];
+    const y = Math.round(126 - (Math.max(0, Math.min(100, pt.score)) / 100) * 110);
+    return { ...pt, x, y };
+  });
+
+  let trendPathD = `M ${trendPoints[0].x},${trendPoints[0].y}`;
+  for (let i = 0; i < trendPoints.length - 1; i++) {
+    const p0 = trendPoints[i];
+    const p1 = trendPoints[i + 1];
+    const dx = (p1.x - p0.x) * 0.45;
+    trendPathD += ` C ${Math.round(p0.x + dx)},${p0.y} ${Math.round(p1.x - dx)},${p1.y} ${p1.x},${p1.y}`;
+  }
+  const trendAreaD = `${trendPathD} L ${trendPoints[trendPoints.length - 1].x},126 L ${trendPoints[0].x},126 Z`;
+
+  const trendPointsSvg = trendPoints.map((p, i) => {
+    const isLatest = i === trendPoints.length - 1;
+    if (isLatest) {
+      return `
+        <g class="score-trend-pt" data-session-id="${p.id}" tabindex="0" role="button" aria-label="${p.topic}: ${p.score} pts on ${p.dateStr}" style="cursor: pointer;">
+          <circle cx="${p.x}" cy="${p.y}" r="11" fill="#d7d7f4" opacity="0.65">
+            <animate attributeName="r" values="9;13;9" dur="2.6s" repeatCount="indefinite" />
+          </circle>
+          <circle cx="${p.x}" cy="${p.y}" r="5" fill="#38325a" />
+          <circle cx="${p.x}" cy="${p.y}" r="2" fill="#ffffff" />
+          <rect x="${p.x - 21}" y="${p.y - 24}" width="42" height="20" rx="6" fill="#d7d7f4" />
+          <text x="${p.x}" y="${p.y - 10}" text-anchor="middle" fill="#38325a" font-size="12" font-weight="700">${p.score}</text>
+          <text x="${p.x}" y="145" text-anchor="middle" fill="#565563" font-size="12" font-weight="700">${p.dateStr}</text>
+        </g>
+      `;
+    }
+    return `
+      <g class="score-trend-pt" data-session-id="${p.id}" tabindex="0" role="button" aria-label="${p.topic}: ${p.score} pts on ${p.dateStr}" style="cursor: pointer;">
+        <circle cx="${p.x}" cy="${p.y}" r="4.5" fill="#38325a" />
+        <circle cx="${p.x}" cy="${p.y}" r="2" fill="#ffffff" />
+        <text x="${p.x}" y="${p.y - 14}" text-anchor="middle" fill="#38325a" font-size="12" font-weight="700">${p.score}</text>
+        <text x="${p.x}" y="145" text-anchor="middle" fill="#565563" font-size="12" font-weight="700">${p.dateStr}</text>
+      </g>
+    `;
+  }).join('');
+
+  // 2. Weekly Activity Bars
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const weeklyCols = [];
+  let totalWeeklyMin = 0;
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+    const dayStr = dayNames[d.getDay()];
+    const dateKey = d.toISOString().slice(0, 10);
+    const daySessions = (S.history || []).filter(s => s.created_at && s.created_at.slice(0, 10) === dateKey);
+    let mins = daySessions.reduce((acc, s) => {
+      const dur = (s.answers || []).reduce((t, a) => t + (a.duration || 0), 0);
+      return acc + Math.round(dur / 60);
+    }, 0);
+    weeklyCols.push({ day: dayStr, mins, count: daySessions.length });
+    totalWeeklyMin += mins;
+  }
+  if (totalWeeklyMin === 0) {
+    const defaultVals = [10, 0, 8, 0, 0, 12, 0];
+    weeklyCols.forEach((col, idx) => { col.mins = defaultVals[idx]; });
+    totalWeeklyMin = 30;
+  }
+  const maxWeeklyMin = Math.max(12, ...weeklyCols.map(c => c.mins));
+
+  const weeklyBarsHtml = weeklyCols.map(col => {
+    const isHigh = col.mins === maxWeeklyMin && col.mins > 0;
+    const isFlat = col.mins === 0;
+    const height = isFlat ? 2 : Math.max(14, Math.round((col.mins / maxWeeklyMin) * 80));
+    const barClass = isFlat ? 'weekly-bar flat' : (isHigh ? 'weekly-bar highlight' : 'weekly-bar');
+
+    return `
+      <div class="weekly-col" data-day="${col.day}" data-mins="${col.mins}" style="cursor: pointer;" title="${col.day}: ${col.mins} min practiced">
+        <span class="weekly-val" style="${isFlat ? 'visibility: hidden;' : ''}">${col.mins}</span>
+        <div class="${barClass}" style="height: ${height}px;"></div>
+        <span class="weekly-day">${col.day}</span>
+      </div>
+    `;
+  }).join('');
+
+  // 3. Latest Feedback Extraction
+  let feedbackTopic = 'UI/UX mock interview';
+  let feedbackDate = '17 Nov';
+  let lowestSkill = 'Answer structure';
+  let lowestDesc = 'You described your actions, but left out the measurable result.';
+  let improvedSkill = 'Speaking pace';
+  let improvedDesc = 'You spoke more steadily and paused between ideas.';
+  let nextStepText = 'End your next answer with what changed and how you know.';
+  let feedbackSessionId = null;
+
+  if (latestScored && latestScored.report) {
+    feedbackSessionId = latestScored.id;
+    feedbackTopic = latestScored.topic || latestScored.role || 'Practice session';
+    feedbackDate = shortDate(latestScored.created_at);
+
+    const rep = latestScored.report;
+    if (rep.improvements && rep.improvements.length > 0) {
+      const imp0 = rep.improvements[0];
+      if (imp0.includes(':')) {
+        const parts = imp0.split(':');
+        lowestSkill = parts[0].trim();
+        lowestDesc = parts.slice(1).join(':').trim();
+      } else {
+        lowestSkill = 'Response structure';
+        lowestDesc = imp0;
+      }
+    }
+    if (rep.strengths && rep.strengths.length > 0) {
+      const str0 = rep.strengths[0];
+      if (str0.includes(':')) {
+        const parts = str0.split(':');
+        improvedSkill = parts[0].trim();
+        improvedDesc = parts.slice(1).join(':').trim();
+      } else {
+        improvedSkill = 'Pacing & rationale';
+        improvedDesc = str0;
+      }
+    }
+    if (rep.next_steps && rep.next_steps.length > 0) {
+      nextStepText = rep.next_steps[0];
+    }
+  } else if (latestSession) {
+    feedbackSessionId = latestSession.id;
+    feedbackTopic = latestSession.topic || latestSession.role || 'Practice session';
+    feedbackDate = shortDate(latestSession.created_at);
+  }
+
+  // 4. Mood Coordinate
+  const currentMoodCoord = getMoodCoord(S.mood.state);
+
+  // 5. Recent Practice List
+  const recentSessionsList = (S.history || []).slice(0, 4);
+  const recentRowsHtml = recentSessionsList.length ? recentSessionsList.map(item => {
+    const typeIcon = item.role === 'presentation' ? 'desktop' : (item.role === 'viva' ? 'reader' : 'speaker');
+    const ansDur = (item.answers || []).reduce((acc, a) => acc + (a.duration || 0), 0);
+    const durationMin = Math.max(1, Math.round(ansDur / 60)) || (item.role === 'presentation' ? 10 : (item.role === 'viva' ? 8 : 12));
+    const scoreText = (item.report && Number.isFinite(item.report.overall))
+      ? `${Math.round(item.report.overall)} / 100`
+      : (item.state === 'complete' ? 'Completed' : 'In progress');
+    const title = item.topic || (item.role ? item.role.toUpperCase() + ' Practice' : 'Mock Interview');
+
+    return `
+      <div class="practice-row-item" data-action="practice-item" data-id="${item.id}" role="button" tabindex="0" title="Open report for ${esc(title)}">
+        <div class="practice-row-left">
+          <div class="practice-type-tile">
+            ${rIcon(typeIcon, 20)}
+          </div>
+          <div class="practice-title-meta">
+            <span class="practice-title">${esc(title)}</span>
+            <span class="practice-meta">${shortDate(item.created_at)} · ${durationMin} min</span>
+          </div>
+        </div>
+        <div class="practice-row-right">
+          <span class="practice-score">${scoreText}</span>
+          ${rIcon("arrowTopRight", 14)}
+        </div>
+      </div>
+    `;
+  }).join('') : `
+    <div style="padding: 24px; text-align: center; color: var(--color-muted);">
+      <p style="font-size: 14px; margin-bottom: 12px;">No practice sessions recorded yet.</p>
+      <button class="btn-control-outline" id="btnEmptyStartPractice" type="button">Start your first session →</button>
+    </div>
+  `;
 
   $('#view').innerHTML = `
     <div class="content dashboard-container">
@@ -329,7 +613,7 @@ function renderDashboard() {
       <section class="hero-card" aria-label="Welcome banner">
         <div class="hero-left">
           <div class="hero-badge-tag">YOUR PRACTICE SPACE</div>
-          <h1 class="hero-headline">Welcome back, Brahmi.</h1>
+          <h1 class="hero-headline">Welcome back, ${esc(S.me?.name || 'Brahmi')}.</h1>
           <div class="hero-subtitle">
             <div>Rehearse an interview, viva, or presentation.</div>
             <div>Find one thing to work on in your next session.</div>
@@ -339,12 +623,12 @@ function renderDashboard() {
               <span>Start a practice session</span>
               ${rIcon("arrowRight", 16)}
             </button>
-            <span class="hero-link" id="btnPacePracticeHero" role="button" tabindex="0">Set your own pace</span>
+            <span class="hero-link" id="btnPacePracticeHero" role="button" tabindex="0" title="Configure session pacing and question count">Set your own pace</span>
           </div>
         </div>
-        <div class="hero-artwork">
+        <div class="hero-artwork" id="heroArtworkVoice" role="button" tabindex="0" title="Click to test speech & audio warmup" style="cursor: pointer;">
           <img src="/static/assets/ceb64.svg" alt="Voice waveform artwork" />
-          <div class="voice-pill">VOICE PRACTICE</div>
+          <div class="voice-pill" id="btnVoicePracticeHero" title="Start voice practice warmup">VOICE PRACTICE</div>
         </div>
       </section>
 
@@ -355,15 +639,15 @@ function renderDashboard() {
             <h2 class="overview-title">Your practice at a glance</h2>
             <p class="overview-sub">See how often you practice and how your scores are changing.</p>
           </div>
-          <div class="overview-date-pill">
-            ${rIcon("speaker", 16)}
-            <span>12–18 November</span>
+          <div class="overview-date-pill" id="btnOverviewDatePill" role="button" tabindex="0" style="cursor: pointer;" title="Active 7-day rolling practice window">
+            ${rIcon("calendar", 16)}
+            <span>${dateRangeStr}</span>
           </div>
         </div>
 
         <div class="metrics-row">
           <!-- Metric 1: Latest score -->
-          <div class="metric-card">
+          <div class="metric-card" id="metricCardScore" role="button" tabindex="0" style="cursor: pointer;" title="View latest session evaluation report">
             <div class="metric-card-top">
               <div class="metric-icon-tile lav">
                 ${rIcon("target", 18)}
@@ -372,12 +656,12 @@ function renderDashboard() {
             </div>
             <div class="metric-card-bottom">
               <span class="metric-value">${latestScore} / 100</span>
-              <span class="metric-context">+8 pts vs. previous</span>
+              <span class="metric-context">${deltaStr}</span>
             </div>
           </div>
 
           <!-- Metric 2: Sessions -->
-          <div class="metric-card">
+          <div class="metric-card" id="metricCardSessions" role="button" tabindex="0" style="cursor: pointer;" title="View session history">
             <div class="metric-card-top">
               <div class="metric-icon-tile teal">
                 ${rIcon("play", 18)}
@@ -391,7 +675,7 @@ function renderDashboard() {
           </div>
 
           <!-- Metric 3: Practice time -->
-          <div class="metric-card">
+          <div class="metric-card" id="metricCardTime" role="button" tabindex="0" style="cursor: pointer;" title="View practice log">
             <div class="metric-card-top">
               <div class="metric-icon-tile yellow">
                 ${rIcon("stopwatch", 18)}
@@ -413,9 +697,9 @@ function renderDashboard() {
           <div class="card-header-row">
             <div>
               <h3 class="card-title">Score trend</h3>
-              <p class="card-sub">Last 4 sessions · score out of 100</p>
+              <p class="card-sub">Last ${trendData.length} sessions · score out of 100</p>
             </div>
-            <div class="pill-badge wash-green">+8 pts vs. previous</div>
+            <div class="pill-badge ${deltaClass}">${deltaStr}</div>
           </div>
 
           <div class="chart-svg-wrap">
@@ -444,38 +728,13 @@ function renderDashboard() {
               <text x="24" y="130" fill="#656375" font-size="11" font-weight="700">0</text>
 
               <!-- Gradient Area fill under curve -->
-              <path d="M 90,52 C 160,46 190,46 250,44 C 320,40 350,34 410,32 C 480,30 510,18 565,16 L 565,126 L 90,126 Z" fill="url(#scoreGrad)" />
+              <path d="${trendAreaD}" fill="url(#scoreGrad)" />
 
               <!-- Smooth Curve Line -->
-              <path d="M 90,52 C 160,46 190,46 250,44 C 320,40 350,34 410,32 C 480,30 510,18 565,16" fill="none" stroke="#38325a" stroke-width="2.5" stroke-linecap="round" />
+              <path d="${trendPathD}" fill="none" stroke="#38325a" stroke-width="2.5" stroke-linecap="round" />
 
-              <!-- Point 1 (8 Nov · 64) -->
-              <circle cx="90" cy="52" r="4.5" fill="#38325a" />
-              <circle cx="90" cy="52" r="2" fill="#ffffff" />
-              <text x="90" y="38" text-anchor="middle" fill="#38325a" font-size="12" font-weight="700">64</text>
-              <text x="90" y="145" text-anchor="middle" fill="#565563" font-size="12" font-weight="700">8 Nov</text>
-
-              <!-- Point 2 (12 Nov · 68) -->
-              <circle cx="250" cy="44" r="4.5" fill="#38325a" />
-              <circle cx="250" cy="44" r="2" fill="#ffffff" />
-              <text x="250" y="30" text-anchor="middle" fill="#38325a" font-size="12" font-weight="700">68</text>
-              <text x="250" y="145" text-anchor="middle" fill="#565563" font-size="12" font-weight="700">12 Nov</text>
-
-              <!-- Point 3 (14 Nov · 74) -->
-              <circle cx="410" cy="32" r="4.5" fill="#38325a" />
-              <circle cx="410" cy="32" r="2" fill="#ffffff" />
-              <text x="410" y="18" text-anchor="middle" fill="#38325a" font-size="12" font-weight="700">74</text>
-              <text x="410" y="145" text-anchor="middle" fill="#565563" font-size="12" font-weight="700">14 Nov</text>
-
-              <!-- Point 4 (17 Nov · 82) with Halo -->
-              <circle cx="565" cy="16" r="10" fill="#d7d7f4" opacity="0.6" />
-              <circle cx="565" cy="16" r="5" fill="#38325a" />
-              <circle cx="565" cy="16" r="2" fill="#ffffff" />
-
-              <!-- Score tag 82 -->
-              <rect x="544" y="-8" width="42" height="20" rx="6" fill="#d7d7f4" />
-              <text x="565" y="6" text-anchor="middle" fill="#38325a" font-size="12" font-weight="700">82</text>
-              <text x="565" y="145" text-anchor="middle" fill="#565563" font-size="12" font-weight="700">17 Nov</text>
+              <!-- Interactive Data Points -->
+              ${trendPointsSvg}
             </svg>
           </div>
         </div>
@@ -487,52 +746,11 @@ function renderDashboard() {
               <h3 class="card-title">Weekly activity</h3>
               <p class="card-sub">Minutes practiced each day</p>
             </div>
-            <div class="pill-badge wash-plum">30 min total</div>
+            <div class="pill-badge wash-plum">${totalWeeklyMin} min total</div>
           </div>
 
           <div class="weekly-bars-grid">
-            <!-- Thu: 10m -->
-            <div class="weekly-col">
-              <span class="weekly-val">10</span>
-              <div class="weekly-bar" style="height: 66px;"></div>
-              <span class="weekly-day">Thu</span>
-            </div>
-            <!-- Fri: 0m -->
-            <div class="weekly-col">
-              <span class="weekly-val" style="visibility: hidden;">0</span>
-              <div class="weekly-bar flat"></div>
-              <span class="weekly-day">Fri</span>
-            </div>
-            <!-- Sat: 8m -->
-            <div class="weekly-col">
-              <span class="weekly-val">8</span>
-              <div class="weekly-bar" style="height: 53px;"></div>
-              <span class="weekly-day">Sat</span>
-            </div>
-            <!-- Sun: 0m -->
-            <div class="weekly-col">
-              <span class="weekly-val" style="visibility: hidden;">0</span>
-              <div class="weekly-bar flat"></div>
-              <span class="weekly-day">Sun</span>
-            </div>
-            <!-- Mon: 0m -->
-            <div class="weekly-col">
-              <span class="weekly-val" style="visibility: hidden;">0</span>
-              <div class="weekly-bar flat"></div>
-              <span class="weekly-day">Mon</span>
-            </div>
-            <!-- Tue: 12m (highlight) -->
-            <div class="weekly-col">
-              <span class="weekly-val">12</span>
-              <div class="weekly-bar highlight" style="height: 80px;"></div>
-              <span class="weekly-day">Tue</span>
-            </div>
-            <!-- Wed: 0m -->
-            <div class="weekly-col">
-              <span class="weekly-val" style="visibility: hidden;">0</span>
-              <div class="weekly-bar flat"></div>
-              <span class="weekly-day">Wed</span>
-            </div>
+            ${weeklyBarsHtml}
           </div>
         </div>
       </div>
@@ -545,9 +763,9 @@ function renderDashboard() {
             <div class="card-header-row">
               <div>
                 <h3 class="card-title">Latest feedback</h3>
-                <p class="card-sub">UI/UX mock interview · 17 Nov</p>
+                <p class="card-sub">${esc(feedbackTopic)} · ${feedbackDate}</p>
               </div>
-              <button class="btn-control-outline" id="btnViewReportFeedback" type="button">
+              <button class="btn-control-outline" id="btnViewReportFeedback" data-session-id="${feedbackSessionId || ''}" type="button">
                 <span>View full report</span>
                 ${rIcon("arrowTopRight", 14)}
               </button>
@@ -559,8 +777,8 @@ function renderDashboard() {
                   ${rIcon("barChart", 18)}
                   <span>Lowest-scoring skill</span>
                 </div>
-                <div class="feedback-box-skill plum">Answer structure</div>
-                <div class="feedback-box-desc">You described your actions, but left out the result.</div>
+                <div class="feedback-box-skill plum">${esc(lowestSkill)}</div>
+                <div class="feedback-box-desc">${esc(lowestDesc)}</div>
               </div>
 
               <div class="feedback-box">
@@ -568,8 +786,8 @@ function renderDashboard() {
                   ${rIcon("activity", 18)}
                   <span>Improved in the last session</span>
                 </div>
-                <div class="feedback-box-skill green">Speaking pace</div>
-                <div class="feedback-box-desc">You spoke more steadily and paused between ideas.</div>
+                <div class="feedback-box-skill green">${esc(improvedSkill)}</div>
+                <div class="feedback-box-desc">${esc(improvedDesc)}</div>
               </div>
             </div>
           </div>
@@ -577,7 +795,7 @@ function renderDashboard() {
           <div class="feedback-next-step">
             ${rIcon("pencil2", 18)}
             <span class="next-step-label">Next step:</span>
-            <span class="next-step-text">End your next answer with what changed and how you know.</span>
+            <span class="next-step-text">${esc(nextStepText)}</span>
           </div>
         </div>
 
@@ -590,7 +808,7 @@ function renderDashboard() {
               </div>
               <h3 class="card-title" style="margin: 0;">Mood check-in</h3>
             </div>
-            <div class="pill-badge paper-plum">CMM model</div>
+            <div class="pill-badge paper-plum">CMA model</div>
           </div>
 
           <div class="mood-circumplex-sub">Circumplex model of affect</div>
@@ -598,14 +816,27 @@ function renderDashboard() {
           <div class="mood-body">
             <div class="mood-body-left">
               <span class="mood-checkin-tag">LAST CHECK-IN</span>
-              <span class="mood-state-word" id="moodStateWord">${S.mood.state}</span>
-              <span class="mood-energy-desc" id="moodEnergyDesc">${S.mood.energyDesc}</span>
-              <span class="mood-meta-date" id="moodMetaDate">${S.mood.date}</span>
+              <span class="mood-state-word" id="moodStateWord">${esc(S.mood.state)}</span>
+              <span class="mood-energy-desc" id="moodEnergyDesc">${esc(S.mood.energyDesc)}</span>
+              <span class="mood-meta-date" id="moodMetaDate">${esc(S.mood.date)}</span>
             </div>
 
             <div class="mood-chart-widget">
               <span style="font-size: 10px; font-weight: 700; color: var(--color-muted); margin-bottom: 2px;">Higher energy</span>
-              <img src="/static/assets/3b26a.svg" width="119" height="58" alt="Circumplex chart" />
+              <svg id="circumplexSvg" preserveAspectRatio="none" overflow="visible" style="display: block; cursor: crosshair;" width="119" height="75" viewBox="0 0 119 83" fill="none" role="img" aria-label="Circumplex Affect Chart">
+                <path d="M108 0H11C4.92487 0 0 4.92487 0 11V72C0 78.0751 4.92487 83 11 83H108C114.075 83 119 78.0751 119 72V11C119 4.92487 114.075 0 108 0Z" fill="#FDFEFF" stroke="#E7E5EF" stroke-width="1"/>
+                <rect id="cmaQuadrantHighlight" x="${currentMoodCoord.quad === 'br' || currentMoodCoord.quad === 'tr' ? 60.5 : 6.5}" y="${currentMoodCoord.quad === 'br' || currentMoodCoord.quad === 'bl' ? 42 : 6}" width="52" height="35" rx="6" fill="${currentMoodCoord.quad === 'tl' ? '#F5D7D7' : (currentMoodCoord.quad === 'bl' ? '#E7E5EF' : '#D7D7F4')}" />
+                <line x1="8" y1="41.5" x2="111" y2="41.5" stroke="#88839B" stroke-width="1.2" stroke-dasharray="3,3"/>
+                <line x1="59.5" y1="8" x2="59.5" y2="75" stroke="#88839B" stroke-width="1.2" stroke-dasharray="3,3"/>
+                <path d="M108 38.5L112 41.5L108 44.5M56.5 12L59.5 8L62.5 12" stroke-linecap="round" stroke="#88839B" fill="none"/>
+                <g id="cmaDotGroup" style="transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); transform: translate(${currentMoodCoord.x}px, ${currentMoodCoord.y}px);">
+                  <circle r="9" fill="#C2D6DB" opacity="0.8">
+                    <animate attributeName="r" values="7;10;7" dur="2.4s" repeatCount="indefinite" />
+                  </circle>
+                  <circle r="4.5" fill="#38325A" />
+                  <circle r="1.5" fill="#FFFFFF" />
+                </g>
+              </svg>
               <div style="width: 100%; display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; color: var(--color-muted); margin-top: 2px;">
                 <span>Unpleasant</span>
                 <span>Pleasant</span>
@@ -638,56 +869,7 @@ function renderDashboard() {
           </div>
 
           <div class="practice-rows-list">
-            <!-- Row 1 -->
-            <div class="practice-row-item" data-action="practice-item" data-id="ui-ux">
-              <div class="practice-row-left">
-                <div class="practice-type-tile">
-                  ${rIcon("speaker", 20)}
-                </div>
-                <div class="practice-title-meta">
-                  <span class="practice-title">UI/UX mock interview</span>
-                  <span class="practice-meta">17 Nov · 12 min</span>
-                </div>
-              </div>
-              <div class="practice-row-right">
-                <span class="practice-score">82 / 100</span>
-                ${rIcon("arrowTopRight", 14)}
-              </div>
-            </div>
-
-            <!-- Row 2 -->
-            <div class="practice-row-item" data-action="practice-item" data-id="hci">
-              <div class="practice-row-left">
-                <div class="practice-type-tile">
-                  ${rIcon("reader", 20)}
-                </div>
-                <div class="practice-title-meta">
-                  <span class="practice-title">HCI viva practice</span>
-                  <span class="practice-meta">14 Nov · 8 min</span>
-                </div>
-              </div>
-              <div class="practice-row-right">
-                <span class="practice-score">74 / 100</span>
-                ${rIcon("arrowTopRight", 14)}
-              </div>
-            </div>
-
-            <!-- Row 3 -->
-            <div class="practice-row-item" data-action="practice-item" data-id="case-study">
-              <div class="practice-row-left">
-                <div class="practice-type-tile">
-                  ${rIcon("desktop", 20)}
-                </div>
-                <div class="practice-title-meta">
-                  <span class="practice-title">Case study presentation</span>
-                  <span class="practice-meta">12 Nov · 10 min</span>
-                </div>
-              </div>
-              <div class="practice-row-right">
-                <span class="practice-score">68 / 100</span>
-                ${rIcon("arrowTopRight", 14)}
-              </div>
-            </div>
+            ${recentRowsHtml}
           </div>
         </div>
 
@@ -705,10 +887,13 @@ function renderDashboard() {
 
           <div class="ai-box-prompt" id="aiBoxPromptContainer">
             <span class="ai-box-tag" id="aiBoxTag">BASED ON YOUR LAST SESSION</span>
-            <span class="ai-box-text" id="aiBoxPromptText">Add a result to your strongest example. Use one number or a clear outcome.</span>
-            <div id="aiBoxActionRow" style="display: none; margin-top: 8px;">
+            <span class="ai-box-text" id="aiBoxPromptText">${esc(nextStepText)}</span>
+            <div id="aiBoxActionRow" style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
               <button id="btnOpenCoachFromBox" class="btn-control-outline" type="button" style="height: 28px; padding: 0 10px; font-size: 11px; background: #ffffff;">
                 <span>Discuss with Coach →</span>
+              </button>
+              <button id="btnPracticePromptFromBox" class="btn-control-outline" type="button" style="height: 28px; padding: 0 10px; font-size: 11px; background: #ffffff;">
+                <span>Practice this prompt →</span>
               </button>
             </div>
           </div>
@@ -728,7 +913,7 @@ function renderDashboard() {
       </div>
 
       <!-- 6. Footer Note -->
-      <div class="dashboard-footer-note">Illustrative data for this dashboard concept</div>
+      <div class="dashboard-footer-note">Live dynamic practice telemetry and personalized coaching powered by Gemini</div>
     </div>
   `;
 
@@ -737,34 +922,95 @@ function renderDashboard() {
 
 function setupDashboardEvents() {
   $('#btnStartPracticeHero')?.addEventListener('click', () => setView('prepare'));
-  $('#btnPacePracticeHero')?.addEventListener('click', () => setView('prepare'));
+  $('#btnPacePracticeHero')?.addEventListener('click', () => showPaceModal());
+  $('#btnVoicePracticeHero')?.addEventListener('click', () => showVoiceWarmupModal());
+  $('#heroArtworkVoice')?.addEventListener('click', () => showVoiceWarmupModal());
 
-  $('#btnViewReportFeedback')?.addEventListener('click', () => {
-    if (S.history.length) {
-      S.item = S.history[0];
-      setView('report');
-    } else {
-      setView('history');
-    }
+  // Overview Date Pill
+  $('#btnOverviewDatePill')?.addEventListener('click', () => {
+    const complete = (S.history || []).filter(x => x.state === 'complete');
+    toast(`🔥 7-Day practice streak active · ${complete.length} sessions completed!`);
   });
 
-  $('#btnAllSessions')?.addEventListener('click', () => setView('history'));
+  // Metric Cards
+  $('#metricCardScore')?.addEventListener('click', () => {
+    if (S.history.length) restoreSession(S.history[0].id);
+    else setView('prepare');
+  });
+  $('#metricCardSessions')?.addEventListener('click', () => setView('history'));
+  $('#metricCardTime')?.addEventListener('click', () => setView('history'));
 
-  document.querySelectorAll('[data-action="practice-item"]').forEach(item => {
-    item.addEventListener('click', () => {
-      if (S.history.length) {
-        S.item = S.history[0];
-        setView('report');
+  // Score Trend Points
+  document.querySelectorAll('.score-trend-pt').forEach(pt => {
+    pt.addEventListener('click', () => {
+      const sid = pt.dataset.sessionId;
+      if (sid) restoreSession(sid);
+    });
+  });
+
+  // Weekly Activity Bars
+  document.querySelectorAll('.weekly-col').forEach(col => {
+    col.addEventListener('click', () => {
+      const day = col.dataset.day;
+      const mins = parseInt(col.dataset.mins || '0', 10);
+      if (mins > 0) {
+        toast(`Practiced ${mins} minutes on ${day}. Keep up the steady cadence!`);
       } else {
-        setView('history');
+        toast(`${day}: No practice recorded yet. Ready for a quick 5-min drill?`);
       }
     });
+  });
+
+  // Latest Feedback Card
+  $('#btnViewReportFeedback')?.addEventListener('click', () => {
+    const btn = $('#btnViewReportFeedback');
+    const sid = btn?.dataset.sessionId;
+    if (sid) restoreSession(sid);
+    else if (S.history.length) restoreSession(S.history[0].id);
+    else setView('history');
+  });
+
+  // Circumplex SVG direct click
+  $('#circumplexSvg')?.addEventListener('click', (e) => {
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const clickX = ((e.clientX - rect.left) / rect.width) * 119;
+    const clickY = ((e.clientY - rect.top) / rect.height) * 83;
+    let closestState = 'Calm';
+    let minDist = Infinity;
+    for (const [name, data] of Object.entries(CMA_MOODS)) {
+      const dist = Math.hypot(data.x - clickX, data.y - clickY);
+      if (dist < minDist) {
+        minDist = dist;
+        closestState = name;
+      }
+    }
+    updateMood(closestState);
   });
 
   // Mood Update Modal
   $('#btnUpdateMoodModal')?.addEventListener('click', () => {
     showMoodModal();
   });
+
+  // All Sessions button
+  $('#btnAllSessions')?.addEventListener('click', () => setView('history'));
+
+  // Recent practice item rows
+  document.querySelectorAll('[data-action="practice-item"]').forEach(item => {
+    item.addEventListener('click', () => {
+      const id = item.dataset.id;
+      if (id) {
+        restoreSession(id);
+      } else if (S.history.length) {
+        restoreSession(S.history[0].id);
+      } else {
+        setView('history');
+      }
+    });
+  });
+
+  $('#btnEmptyStartPractice')?.addEventListener('click', () => setView('prepare'));
 
   // AI Coach pill click
   $('#btnAiCoachPill')?.addEventListener('click', () => setView('coach'));
@@ -778,17 +1024,19 @@ function setupDashboardEvents() {
     const actionRow = $('#aiBoxActionRow');
     if (boxTag) boxTag.textContent = "STAR FRAMEWORK DRILL";
     if (boxText) boxText.textContent = "Situation: 15% drop-off at checkout. Task: Streamline form. Action: Tested 1-page checkout & instant card scan. Result: +8% conversions.";
-    if (actionRow) actionRow.style.display = 'block';
+    if (actionRow) actionRow.style.display = 'flex';
     S.lastCoachQuery = "How do I structure my UX case study using STAR?";
-    S.lastCoachReply = "Using the STAR method (Situation, Task, Action, Result) is the best way to structure your UI/UX case study answers:\\n\\n1. Situation: Set the context (company, team, user base).\\n2. Task: Define the specific design challenge or problem you needed to solve.\\n3. Action: Walk through your design process—user research, wireframing, prototyping, and how you collaborated.\\n4. Result: Share the impact with metrics (e.g., 'conversion rate increased by 8%') or qualitative feedback.";
+    S.lastCoachReply = "Using the STAR method (Situation, Task, Action, Result) is the best way to structure your UI/UX case study answers:\n\n1. Situation: Set the context (company, team, user base).\n2. Task: Define the specific design challenge or problem you needed to solve.\n3. Action: Walk through your design process—user research, wireframing, prototyping, and how you collaborated.\n4. Result: Share the impact with metrics (e.g., 'conversion rate increased by 8%') or qualitative feedback.";
   });
 
   $('#chipQuestion')?.addEventListener('click', () => {
     const questions = [
       "Can you walk me through a time when user testing completely contradicted your team's initial design hypothesis?",
-      "How would you design an accessible mobile experience for users with low digital literacy?",
+      "How would you design an accessible mobile experience for users with low digital literacy (WCAG AA)?",
       "Tell me about a design trade-off you had to make between engineering constraints and ideal user experience.",
-      "How do you prioritize which user problems to solve when product deadlines are tight?"
+      "How do you prioritize which user problems to solve when product deadlines are tight?",
+      "How do you handle conflicting feedback from users, product managers, and developers?",
+      "How do you typically synthesize qualitative user research into actionable insights when you are short on time?"
     ];
     const q = questions[Math.floor(Math.random() * questions.length)];
     const input = $('#aiCoachQuickInput');
@@ -798,14 +1046,21 @@ function setupDashboardEvents() {
     const actionRow = $('#aiBoxActionRow');
     if (boxTag) boxTag.textContent = "PRACTICE QUESTION";
     if (boxText) boxText.textContent = q;
-    if (actionRow) actionRow.style.display = 'block';
+    if (actionRow) actionRow.style.display = 'flex';
     S.lastCoachQuery = q;
-    S.lastCoachReply = `Here is how to approach this question:\\n\\n"${q}"\\n\\n• Frame your answer using STAR.\\n• Highlight how you listened to users and validated your choices.\\n• State the measurable outcome or what you learned.`;
+    S.lastCoachReply = `Here is how to approach this question:\n\n"${q}"\n\n• Frame your answer using STAR.\n• Highlight how you listened to users and validated your choices.\n• State the measurable outcome or what you learned.`;
   });
 
-  // Action button in prompt box
+  // Action buttons in prompt box
   $('#btnOpenCoachFromBox')?.addEventListener('click', () => {
     setView('coach');
+  });
+
+  $('#btnPracticePromptFromBox')?.addEventListener('click', () => {
+    const promptText = $('#aiBoxPromptText')?.textContent || 'UI/UX Mock Interview';
+    S.setup = { ...S.setup, topic: promptText.slice(0, 50), mode: 'interview' };
+    toast('Prompt loaded into new practice session!');
+    setView('prepare');
   });
 
   // AI insights input & send
@@ -820,6 +1075,280 @@ function setupDashboardEvents() {
       const val = e.target.value.trim();
       if (val) askCoachQuick(val);
     }
+  });
+}
+
+function showPaceModal() {
+  const existing = $('#paceModalBackdrop');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'paceModalBackdrop';
+  modal.className = 'auth-backdrop';
+  modal.innerHTML = `
+    <div class="auth-card" style="max-width: 520px; text-align: left;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="width: 32px; height: 32px; border-radius: 10px; background: var(--color-wash); display: flex; align-items: center; justify-content: center; color: var(--color-plum);">
+            ${rIcon("stopwatch", 18)}
+          </div>
+          <h2 style="font-size: 20px; font-weight: 700; color: var(--color-ink); margin: 0;">Customize Practice Pace</h2>
+        </div>
+        <button id="btnClosePaceModal" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--color-muted);">✕</button>
+      </div>
+
+      <p style="font-size: 13px; color: var(--color-muted); margin-bottom: 18px; line-height: 1.4;">
+        Set your question volume, time limit per prompt, and target domain to rehearse at your desired pace.
+      </p>
+
+      <!-- Target Topic / Role -->
+      <div style="margin-bottom: 16px;">
+        <label style="display: block; font-size: 12px; font-weight: 700; color: var(--color-ink); margin-bottom: 6px;">Target Role or Practice Topic</label>
+        <input type="text" id="paceTopicInput" value="${esc(S.setup.topic || 'UI/UX Designer')}" style="width: 100%; height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--color-border); font-family: inherit; font-size: 14px; box-sizing: border-box;" />
+        <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
+          <button type="button" class="pace-topic-pill" data-topic="UI/UX Designer" style="padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; border: 1px solid var(--color-border); background: var(--color-wash); cursor: pointer;">UI/UX Designer</button>
+          <button type="button" class="pace-topic-pill" data-topic="Product Designer" style="padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; border: 1px solid var(--color-border); background: var(--color-wash); cursor: pointer;">Product Designer</button>
+          <button type="button" class="pace-topic-pill" data-topic="HCI Research & Defense" style="padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; border: 1px solid var(--color-border); background: var(--color-wash); cursor: pointer;">HCI Research</button>
+          <button type="button" class="pace-topic-pill" data-topic="Design Systems Engineer" style="padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; border: 1px solid var(--color-border); background: var(--color-wash); cursor: pointer;">Design Systems</button>
+        </div>
+      </div>
+
+      <!-- Format & Difficulty -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+        <div>
+          <label style="display: block; font-size: 12px; font-weight: 700; color: var(--color-ink); margin-bottom: 6px;">Format</label>
+          <select id="paceFormatSelect" style="width: 100%; height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--color-border); font-family: inherit; font-size: 13px; background: #fff;">
+            <option value="interview" ${S.setup.mode === 'interview' ? 'selected' : ''}>Interview (Conversational)</option>
+            <option value="viva" ${S.setup.mode === 'viva' ? 'selected' : ''}>Viva (Academic / Theory)</option>
+            <option value="presentation" ${S.setup.mode === 'presentation' ? 'selected' : ''}>Presentation (Portfolio walkthrough)</option>
+          </select>
+        </div>
+        <div>
+          <label style="display: block; font-size: 12px; font-weight: 700; color: var(--color-ink); margin-bottom: 6px;">Difficulty</label>
+          <select id="paceDifficultySelect" style="width: 100%; height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--color-border); font-family: inherit; font-size: 13px; background: #fff;">
+            <option value="Beginner" ${S.setup.difficulty === 'Beginner' ? 'selected' : ''}>Beginner (Foundational)</option>
+            <option value="Intermediate" ${S.setup.difficulty === 'Intermediate' ? 'selected' : ''}>Intermediate (Standard)</option>
+            <option value="Advanced" ${S.setup.difficulty === 'Advanced' ? 'selected' : ''}>Advanced (Senior / Edge cases)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Question Volume -->
+      <div style="margin-bottom: 16px;">
+        <label style="display: block; font-size: 12px; font-weight: 700; color: var(--color-ink); margin-bottom: 6px;">Question Count</label>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+          <button type="button" class="pace-count-btn ${S.setup.question_count === 3 ? 'active' : ''}" data-count="3" style="padding: 10px; border-radius: 10px; border: 1px solid var(--color-border); background: ${S.setup.question_count === 3 ? 'var(--color-plum)' : 'var(--color-wash)'}; color: ${S.setup.question_count === 3 ? '#fff' : 'var(--color-ink)'}; font-weight: 700; cursor: pointer; text-align: center;">
+            <div style="font-size: 14px;">3 Prompts</div>
+            <div style="font-size: 10px; opacity: 0.8; font-weight: 500;">~6 min drill</div>
+          </button>
+          <button type="button" class="pace-count-btn ${S.setup.question_count === 5 ? 'active' : ''}" data-count="5" style="padding: 10px; border-radius: 10px; border: 1px solid var(--color-border); background: ${S.setup.question_count === 5 ? 'var(--color-plum)' : 'var(--color-wash)'}; color: ${S.setup.question_count === 5 ? '#fff' : 'var(--color-ink)'}; font-weight: 700; cursor: pointer; text-align: center;">
+            <div style="font-size: 14px;">5 Prompts</div>
+            <div style="font-size: 10px; opacity: 0.8; font-weight: 500;">~12 min standard</div>
+          </button>
+          <button type="button" class="pace-count-btn ${S.setup.question_count === 8 ? 'active' : ''}" data-count="8" style="padding: 10px; border-radius: 10px; border: 1px solid var(--color-border); background: ${S.setup.question_count === 8 ? 'var(--color-plum)' : 'var(--color-wash)'}; color: ${S.setup.question_count === 8 ? '#fff' : 'var(--color-ink)'}; font-weight: 700; cursor: pointer; text-align: center;">
+            <div style="font-size: 14px;">8 Prompts</div>
+            <div style="font-size: 10px; opacity: 0.8; font-weight: 500;">~20 min in-depth</div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Pacing per Question -->
+      <div style="margin-bottom: 22px;">
+        <label style="display: block; font-size: 12px; font-weight: 700; color: var(--color-ink); margin-bottom: 6px;">Pacing Time Limit</label>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;">
+          <button type="button" class="pace-timer-btn" data-timer="60" style="padding: 8px 4px; border-radius: 8px; border: 1px solid var(--color-border); background: var(--color-wash); font-size: 12px; font-weight: 600; cursor: pointer; text-align: center;">60s Speed</button>
+          <button type="button" class="pace-timer-btn active" data-timer="90" style="padding: 8px 4px; border-radius: 8px; border: 1px solid var(--color-plum); background: var(--color-plum); color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; text-align: center;">90s Standard</button>
+          <button type="button" class="pace-timer-btn" data-timer="180" style="padding: 8px 4px; border-radius: 8px; border: 1px solid var(--color-border); background: var(--color-wash); font-size: 12px; font-weight: 600; cursor: pointer; text-align: center;">3 min Deep</button>
+          <button type="button" class="pace-timer-btn" data-timer="0" style="padding: 8px 4px; border-radius: 8px; border: 1px solid var(--color-border); background: var(--color-wash); font-size: 12px; font-weight: 600; cursor: pointer; text-align: center;">Untimed</button>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button id="btnCancelPaceModal" class="btn-control-outline" type="button" style="height: 42px; padding: 0 18px;">Cancel</button>
+        <button id="btnLaunchPacedSession" class="btn-hero-primary" type="button" style="height: 42px; padding: 0 20px;">
+          <span>Start Paced Session</span>
+          ${rIcon("arrowRight", 16)}
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  let selectedCount = S.setup.question_count || 5;
+  let selectedTimer = 90;
+
+  modal.querySelectorAll('.pace-topic-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const topicInp = $('#paceTopicInput');
+      if (topicInp) topicInp.value = btn.dataset.topic;
+    });
+  });
+
+  modal.querySelectorAll('.pace-count-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      modal.querySelectorAll('.pace-count-btn').forEach(b => {
+        b.style.background = 'var(--color-wash)';
+        b.style.color = 'var(--color-ink)';
+      });
+      btn.style.background = 'var(--color-plum)';
+      btn.style.color = '#fff';
+      selectedCount = parseInt(btn.dataset.count, 10);
+    });
+  });
+
+  modal.querySelectorAll('.pace-timer-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      modal.querySelectorAll('.pace-timer-btn').forEach(b => {
+        b.style.background = 'var(--color-wash)';
+        b.style.color = 'var(--color-ink)';
+        b.style.borderColor = 'var(--color-border)';
+      });
+      btn.style.background = 'var(--color-plum)';
+      btn.style.color = '#fff';
+      btn.style.borderColor = 'var(--color-plum)';
+      selectedTimer = parseInt(btn.dataset.timer, 10);
+    });
+  });
+
+  $('#btnClosePaceModal')?.addEventListener('click', () => modal.remove());
+  $('#btnCancelPaceModal')?.addEventListener('click', () => modal.remove());
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+
+  $('#btnLaunchPacedSession')?.addEventListener('click', () => {
+    const topicVal = $('#paceTopicInput')?.value.trim() || 'UI/UX Designer';
+    const modeVal = $('#paceFormatSelect')?.value || 'interview';
+    const diffVal = $('#paceDifficultySelect')?.value || 'Intermediate';
+
+    S.setup = {
+      ...S.setup,
+      topic: topicVal,
+      mode: modeVal,
+      difficulty: diffVal,
+      question_count: selectedCount,
+      pacingLimit: selectedTimer
+    };
+
+    modal.remove();
+    toast(`Configured ${selectedCount}-question ${modeVal} session for ${topicVal}!`);
+    setView('prepare');
+  });
+}
+
+function showVoiceWarmupModal() {
+  const existing = $('#voiceWarmupBackdrop');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'voiceWarmupBackdrop';
+  modal.className = 'auth-backdrop';
+  modal.innerHTML = `
+    <div class="auth-card" style="max-width: 480px; text-align: left;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="width: 32px; height: 32px; border-radius: 10px; background: #FCFD76; display: flex; align-items: center; justify-content: center; color: var(--color-plum);">
+            ${rIcon("speaker", 18)}
+          </div>
+          <h2 style="font-size: 20px; font-weight: 700; color: var(--color-ink); margin: 0;">Voice & Speech Practice</h2>
+        </div>
+        <button id="btnCloseVoiceModal" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--color-muted);">✕</button>
+      </div>
+
+      <p style="font-size: 13px; color: var(--color-muted); margin-bottom: 16px; line-height: 1.4;">
+        Rehearse spoken clarity, pitch cadence, and intentional pauses before answering interview questions.
+      </p>
+
+      <!-- Warmup exercise card -->
+      <div style="background: var(--color-wash); border-radius: 12px; padding: 14px; margin-bottom: 16px; border: 1px solid var(--color-border);">
+        <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.5px; color: var(--color-plum); text-transform: uppercase; margin-bottom: 6px;">30-Second Cadence Warm-up</div>
+        <p style="font-size: 14px; font-weight: 600; color: var(--color-ink); margin: 0; line-height: 1.5;">
+          "In our redesign, we cut checkout drop-off by 24% by replacing a multi-step form with inline validation and biometric one-tap pay."
+        </p>
+      </div>
+
+      <!-- Interactive Mic Check -->
+      <div style="background: #ffffff; border-radius: 12px; padding: 14px; margin-bottom: 20px; border: 1px solid var(--color-border);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span style="font-size: 13px; font-weight: 700; color: var(--color-ink);">Microphone Clarity Check</span>
+          <span id="micCheckStatus" style="font-size: 12px; color: var(--color-muted);">Ready to test</span>
+        </div>
+        <div style="height: 10px; width: 100%; background: var(--color-wash); border-radius: 5px; overflow: hidden; margin-bottom: 10px;">
+          <div id="micVolumeBar" style="height: 100%; width: 0%; background: #38325a; transition: width 0.1s linear;"></div>
+        </div>
+        <button id="btnRunMicTest" class="btn-control-outline" type="button" style="width: 100%; height: 36px; font-size: 12px;">
+          <span>Test Spoken Audio Input</span>
+          ${rIcon("play", 14)}
+        </button>
+      </div>
+
+      <div style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button id="btnCloseVoiceCancel" class="btn-control-outline" type="button" style="height: 42px; padding: 0 16px;">Close</button>
+        <button id="btnStartVoiceSession" class="btn-hero-primary" type="button" style="height: 42px; padding: 0 20px;">
+          <span>Start Voice Practice Session</span>
+          ${rIcon("arrowRight", 16)}
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  let streamRef = null;
+  let animId = null;
+
+  $('#btnRunMicTest')?.addEventListener('click', async () => {
+    const status = $('#micCheckStatus');
+    const bar = $('#micVolumeBar');
+    if (status) status.textContent = 'Listening (speak now)…';
+
+    try {
+      streamRef = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const source = audioCtx.createMediaStreamSource(streamRef);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 64;
+      source.connect(analyser);
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      let startTime = Date.now();
+
+      function updateVolume() {
+        if (Date.now() - startTime > 4000) {
+          if (bar) bar.style.width = '100%';
+          if (bar) bar.style.background = '#4caf50';
+          if (status) status.textContent = '✓ Microphone clear & calibrated!';
+          if (streamRef) streamRef.getTracks().forEach(t => t.stop());
+          audioCtx.close().catch(() => {});
+          return;
+        }
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+        let avg = sum / dataArray.length;
+        let pct = Math.min(100, Math.round((avg / 128) * 100));
+        if (bar) bar.style.width = `${pct}%`;
+        animId = requestAnimationFrame(updateVolume);
+      }
+      updateVolume();
+    } catch (err) {
+      if (status) status.textContent = 'Microphone permission denied.';
+      toast('Could not access microphone: ' + err.message, true);
+    }
+  });
+
+  const cleanupVoice = () => {
+    if (animId) cancelAnimationFrame(animId);
+    if (streamRef) streamRef.getTracks().forEach(t => t.stop());
+    modal.remove();
+  };
+
+  $('#btnCloseVoiceModal')?.addEventListener('click', cleanupVoice);
+  $('#btnCloseVoiceCancel')?.addEventListener('click', cleanupVoice);
+  modal.addEventListener('click', e => { if (e.target === modal) cleanupVoice(); });
+
+  $('#btnStartVoiceSession')?.addEventListener('click', () => {
+    cleanupVoice();
+    S.setup = { ...S.setup, mode: 'interview', microphone: true, camera: false, topic: 'UI/UX Designer' };
+    toast('Starting voice practice session with microphone enabled!');
+    setView('prepare');
   });
 }
 
@@ -840,27 +1369,27 @@ function showMoodModal() {
         Select your current affective state on the Circumplex Model of Affect (Valence & Energy):
       </p>
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
-        <button class="mood-choice-btn" data-state="Calm" data-desc="Pleasant · Low energy" style="padding: 12px; border-radius: 14px; border: 1px solid var(--color-border); background: var(--color-wash); cursor: pointer; text-align: left;">
+        <button class="mood-choice-btn" data-state="Calm" style="padding: 12px; border-radius: 14px; border: 1px solid var(--color-border); background: var(--color-wash); cursor: pointer; text-align: left;">
           <div style="font-weight: 700; color: var(--color-plum);">Calm</div>
           <div style="font-size: 11px; color: var(--color-muted);">Pleasant · Low energy</div>
         </button>
-        <button class="mood-choice-btn" data-state="Focused" data-desc="Pleasant · Optimal flow" style="padding: 12px; border-radius: 14px; border: 1px solid var(--color-border); background: var(--color-wash); cursor: pointer; text-align: left;">
+        <button class="mood-choice-btn" data-state="Focused" style="padding: 12px; border-radius: 14px; border: 1px solid var(--color-border); background: var(--color-wash); cursor: pointer; text-align: left;">
           <div style="font-weight: 700; color: var(--color-plum);">Focused</div>
           <div style="font-size: 11px; color: var(--color-muted);">Pleasant · Optimal flow</div>
         </button>
-        <button class="mood-choice-btn" data-state="Confident" data-desc="Pleasant · High energy" style="padding: 12px; border-radius: 14px; border: 1px solid var(--color-border); background: var(--color-wash); cursor: pointer; text-align: left;">
+        <button class="mood-choice-btn" data-state="Confident" style="padding: 12px; border-radius: 14px; border: 1px solid var(--color-border); background: var(--color-wash); cursor: pointer; text-align: left;">
           <div style="font-weight: 700; color: var(--color-plum);">Confident</div>
           <div style="font-size: 11px; color: var(--color-muted);">Pleasant · High energy</div>
         </button>
-        <button class="mood-choice-btn" data-state="Excited" data-desc="Pleasant · High activation" style="padding: 12px; border-radius: 14px; border: 1px solid var(--color-border); background: var(--color-wash); cursor: pointer; text-align: left;">
+        <button class="mood-choice-btn" data-state="Excited" style="padding: 12px; border-radius: 14px; border: 1px solid var(--color-border); background: var(--color-wash); cursor: pointer; text-align: left;">
           <div style="font-weight: 700; color: var(--color-plum);">Excited</div>
           <div style="font-size: 11px; color: var(--color-muted);">Pleasant · High activation</div>
         </button>
-        <button class="mood-choice-btn" data-state="Reflective" data-desc="Pleasant · Low energy" style="padding: 12px; border-radius: 14px; border: 1px solid var(--color-border); background: var(--color-wash); cursor: pointer; text-align: left;">
+        <button class="mood-choice-btn" data-state="Reflective" style="padding: 12px; border-radius: 14px; border: 1px solid var(--color-border); background: var(--color-wash); cursor: pointer; text-align: left;">
           <div style="font-weight: 700; color: var(--color-plum);">Reflective</div>
           <div style="font-size: 11px; color: var(--color-muted);">Pleasant · Low energy</div>
         </button>
-        <button class="mood-choice-btn" data-state="Tense" data-desc="High energy · Pressured" style="padding: 12px; border-radius: 14px; border: 1px solid var(--color-border); background: var(--color-wash); cursor: pointer; text-align: left;">
+        <button class="mood-choice-btn" data-state="Tense" style="padding: 12px; border-radius: 14px; border: 1px solid var(--color-border); background: var(--color-wash); cursor: pointer; text-align: left;">
           <div style="font-weight: 700; color: var(--color-plum);">Tense</div>
           <div style="font-size: 11px; color: var(--color-muted);">High energy · Pressured</div>
         </button>
@@ -877,19 +1406,7 @@ function showMoodModal() {
   modal.querySelectorAll('.mood-choice-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const state = btn.dataset.state;
-      const desc = btn.dataset.desc;
-      S.mood.state = state;
-      S.mood.energyDesc = desc;
-      S.mood.date = 'Self-reported · Just now';
-      
-      const stEl = $('#moodStateWord');
-      const descEl = $('#moodEnergyDesc');
-      const dateEl = $('#moodMetaDate');
-      if (stEl) stEl.textContent = state;
-      if (descEl) descEl.textContent = desc;
-      if (dateEl) dateEl.textContent = S.mood.date;
-
-      toast(`Mood updated to ${state} (${desc})`);
+      updateMood(state);
       modal.remove();
     });
   });
@@ -911,7 +1428,7 @@ async function askCoachQuick(query) {
       const summary = res.reply.split('\n\n')[0] || res.reply;
       boxText.textContent = summary.replace(/[*#]/g, '');
     }
-    if (actionRow) actionRow.style.display = 'block';
+    if (actionRow) actionRow.style.display = 'flex';
     S.lastCoachQuery = query;
     S.lastCoachReply = res.reply;
 
@@ -1396,14 +1913,21 @@ function renderRoom() {
 
           <!-- Video Grid -->
           <div class="video-grid-2">
-            <div class="video-cell-card">
+            <div class="video-cell-card" id="cameraVideoCell">
               <video id="previewCamera" muted autoplay playsinline></video>
+              
+              <!-- Real-time Live Focus & Distraction Alert Overlay -->
+              <div id="liveFocusAlert" class="live-focus-alert hidden" role="alert">
+                <span id="liveAlertIcon">👀</span>
+                <span id="liveAlertMsg">Looking away detected. Re-center your gaze.</span>
+              </div>
+
               <span class="video-cell-tag">
                 ${R_ICON.camera}
                 <span>Candidate Camera</span>
               </span>
               <div id="cameraPlaceholder" class="video-cell-placeholder hidden">
-            ${rIcon("camera", 24)}
+                ${rIcon("camera", 24)}
                 <span>Camera stream inactive</span>
               </div>
             </div>
@@ -1520,10 +2044,89 @@ function renderRoom() {
                 <span>Eye gaze:</span>
                 <strong id="gazeDirection" style="color: var(--color-ink);">—</strong>
               </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span>Attention status:</span>
+                <strong id="focusAlertStatus" style="color: #4caf50;">Focused on camera</strong>
+              </div>
             </div>
 
             <div style="background: var(--color-wash); border-radius: 10px; padding: 10px 12px; margin-top: 14px; font-size: 11px; line-height: 1.45; color: var(--color-muted); border: 1px solid var(--color-border);">
               Face orientation is processed entirely in-browser. It is not conclusive proof of attention.
+            </div>
+          </div>
+
+          <!-- Live Circumplex Model of Affect (CMA) Monitor Card -->
+          <div class="card-white live-cma-card" id="liveCmaCard" style="padding: 22px;">
+            <div class="card-header-row" style="margin-bottom: 12px;">
+              <div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span class="status-dot-pulse active"></span>
+                  <h3 class="card-title" style="font-size: 16px; margin: 0;">Live Affect (CMA)</h3>
+                </div>
+                <p class="card-sub" style="margin-top: 2px;">Real-time valence & arousal tracking</p>
+              </div>
+              <span id="liveCmaBadge" class="pill-badge wash-plum" style="font-size: 10px; font-weight: 700;">LIVE MODEL</span>
+            </div>
+
+            <!-- Live Mini Circumplex SVG -->
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 4px 0 10px;">
+              <div style="position: relative; width: 100%; max-width: 220px; aspect-ratio: 1.35;">
+                <svg id="liveCmaSvg" viewBox="0 0 210 160" style="width: 100%; height: 100%; overflow: visible;" role="img" aria-label="Live Circumplex Affect Chart">
+                  <defs>
+                    <clipPath id="liveCircleClip">
+                      <circle cx="105" cy="80" r="54" />
+                    </clipPath>
+                  </defs>
+
+                  <!-- Pastel Quadrants -->
+                  <g clip-path="url(#liveCircleClip)">
+                    <!-- Q2: Top-Left (Peach #FFEBE3) - Tense / Pressured -->
+                    <rect x="51" y="26" width="54" height="54" fill="#FFEBE3" />
+                    <!-- Q1: Top-Right (Lavender #E8E7FA) - Confident / Flow -->
+                    <rect x="105" y="26" width="54" height="54" fill="#E8E7FA" />
+                    <!-- Q3: Bottom-Left (Mist #ECEEF2) - Hesitant / Fatigued -->
+                    <rect x="51" y="80" width="54" height="54" fill="#ECEEF2" />
+                    <!-- Q4: Bottom-Right (Mint #E4F6ED) - Calm / Composed -->
+                    <rect x="105" y="80" width="54" height="54" fill="#E4F6ED" />
+                  </g>
+
+                  <!-- Outer Boundary -->
+                  <circle cx="105" cy="80" r="54" fill="none" stroke="#e7e5ef" stroke-width="1.2"/>
+
+                  <!-- Center Cross Axes -->
+                  <line x1="51" y1="80" x2="159" y2="80" stroke="#656375" stroke-width="1" stroke-dasharray="2 2" />
+                  <line x1="105" y1="26" x2="105" y2="134" stroke="#656375" stroke-width="1" stroke-dasharray="2 2" />
+
+                  <!-- Dimension Labels -->
+                  <text x="105" y="16" text-anchor="middle" font-size="7.5" font-weight="700" fill="#38325a" letter-spacing="0.5px">HIGH ENERGY</text>
+                  <text x="105" y="152" text-anchor="middle" font-size="7.5" font-weight="700" fill="#565563" letter-spacing="0.5px">LOW ENERGY</text>
+                  <text x="44" y="83" text-anchor="end" font-size="7" font-weight="700" fill="#565563">UNPLEASANT</text>
+                  <text x="166" y="83" text-anchor="start" font-size="7" font-weight="700" fill="#38325a">PLEASANT</text>
+
+                  <!-- Live Moving Affect Dot -->
+                  <g id="liveCmaDotGroup" style="transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); transform: translate(105px, 80px);">
+                    <circle r="8" fill="#38325a" opacity="0.2">
+                      <animate attributeName="r" values="6;10;6" dur="2s" repeatCount="indefinite" />
+                    </circle>
+                    <circle r="4" fill="#38325a" />
+                    <circle r="1.5" fill="#ffffff" />
+                  </g>
+                </svg>
+              </div>
+            </div>
+
+            <!-- Live Emotional State Readout -->
+            <div style="background: var(--color-wash); border-radius: 12px; padding: 12px 14px; border: 1px solid var(--color-border);">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+                <span style="font-size: 11px; font-weight: 700; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.5px;">CURRENT AFFECT</span>
+                <span id="liveCmaValArousal" style="font-size: 10px; font-weight: 700; color: var(--color-plum);">V: +0.35 · A: +0.20</span>
+              </div>
+              <div id="liveCmaStateWord" style="font-size: 15px; font-weight: 700; color: var(--color-ink); margin-bottom: 4px;">
+                Focused · Optimal Flow
+              </div>
+              <div id="liveCmaTip" style="font-size: 11px; color: var(--color-muted); line-height: 1.4;">
+                Good delivery cadence. Maintaining direct camera focus.
+              </div>
             </div>
           </div>
 
@@ -1583,6 +2186,7 @@ function renderRoom() {
     S.edited = true;
     draftSet('mockprep_draft_' + S.item.id + '_' + S.idx, $('#answerText').value);
     $('#wordCount').textContent = wordCount($('#answerText').value) + ' words';
+    updateLiveCma();
   });
 
   if (S.stream?.getVideoTracks().length) {
@@ -1663,8 +2267,9 @@ function updateSignals() {
     ['camera', !!S.stream?.getVideoTracks().some(t => t.readyState === 'live')],
     ['mic', !!S.stream?.getAudioTracks().some(t => t.readyState === 'live')],
     ['screen', !!S.screenStream?.getVideoTracks().some(t => t.readyState === 'live')],
-    ['face', !!S.faceModel]
+    ['face', !!S.faceModel || (S.setup.face && !!S.faceInterval)]
   ];
+  updateLiveCma();
   signals.forEach(([n, on]) => {
     const dot = $('#' + n + 'Dot');
     if (dot) dot.classList.toggle('ready', on);
@@ -1883,6 +2488,7 @@ async function startListening() {
         if (!S.edited && $('#answerText')) {
           $('#answerText').value = S.liveText;
           $('#wordCount').textContent = wordCount(S.liveText) + ' words';
+          updateLiveCma();
         }
       };
       S.recognizer.onerror = e => {
@@ -2295,6 +2901,178 @@ function createPeer() {
   return pc;
 }
 
+function playSoftAlertTone() {
+  try {
+    const AudioCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtor) return;
+    const audioCtx = new AudioCtor();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(330, audioCtx.currentTime + 0.22);
+    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.22);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.23);
+  } catch {}
+}
+
+function showLiveFocusAlert(icon, message, key) {
+  const alertEl = $('#liveFocusAlert');
+  const alertIcon = $('#liveAlertIcon');
+  const alertMsg = $('#liveAlertMsg');
+  const cameraCard = $('#cameraVideoCell') || $('.video-cell-card');
+  const statusEl = $('#focusAlertStatus');
+
+  if (alertEl) {
+    alertEl.className = 'live-focus-alert';
+    if (alertIcon) alertIcon.textContent = icon;
+    if (alertMsg) alertMsg.textContent = message;
+  }
+  if (cameraCard) cameraCard.classList.add('has-alert');
+  if (statusEl) {
+    statusEl.innerHTML = `<span style="color: #ff5252;">${icon} Distracted</span>`;
+  }
+
+  const cmaCard = $('#liveCmaCard');
+  if (cmaCard) cmaCard.classList.add('distracted');
+
+  const now = Date.now();
+  if (now - (S.faceState.lastAlertSound || 0) > 5000) {
+    playSoftAlertTone();
+    S.faceState.lastAlertSound = now;
+  }
+
+  S.faceState.alertActive = true;
+}
+
+function hideLiveFocusAlert() {
+  const alertEl = $('#liveFocusAlert');
+  const alertIcon = $('#liveAlertIcon');
+  const alertMsg = $('#liveAlertMsg');
+  const cameraCard = $('#cameraVideoCell') || $('.video-cell-card');
+  const statusEl = $('#focusAlertStatus');
+
+  if (alertEl && S.faceState.alertActive) {
+    alertEl.className = 'live-focus-alert success';
+    if (alertIcon) alertIcon.textContent = '✓';
+    if (alertMsg) alertMsg.textContent = 'Good eye contact restored';
+    setTimeout(() => {
+      if (S.faceState.key === 'normal' && alertEl) {
+        alertEl.className = 'live-focus-alert hidden';
+      }
+    }, 1300);
+  }
+  if (cameraCard) cameraCard.classList.remove('has-alert');
+  if (statusEl) {
+    statusEl.innerHTML = `<span style="color: #4caf50;">Focused on camera</span>`;
+  }
+  const cmaCard = $('#liveCmaCard');
+  if (cmaCard) cmaCard.classList.remove('distracted');
+
+  S.faceState.alertActive = false;
+}
+
+function updateLiveCma() {
+  if (!S.sessionLive || !$('#liveCmaSvg')) return;
+
+  const checkin = S.item?.checkin || {};
+  const baseEnergy = (checkin.energy || 'Moderate').toLowerCase();
+  const baseFeeling = (checkin.feeling || 'Focused').toLowerCase();
+
+  // Baseline anchors
+  let v = 0.35;
+  let a = 0.20;
+  if (baseFeeling.includes('calm')) { v = 0.45; a = -0.20; }
+  else if (baseFeeling.includes('confident')) { v = 0.60; a = 0.30; }
+  else if (baseFeeling.includes('tense')) { v = -0.35; a = 0.45; }
+  else if (baseFeeling.includes('reflective')) { v = 0.20; a = -0.25; }
+
+  if (baseEnergy.includes('high')) a += 0.20;
+  else if (baseEnergy.includes('low')) a -= 0.20;
+
+  // Real-time speech dynamics modulation
+  if (S.answering) {
+    const elapsedSec = Math.max(1, Math.round((Date.now() - (S.answerStarted || Date.now())) / 1000));
+    const txt = S.liveText || $('#answerText')?.value || '';
+    const words = wordCount(txt);
+    const wpm = (elapsedSec >= 4 && words > 0) ? Math.round(words / (elapsedSec / 60)) : 0;
+
+    // Word volume and fluency
+    if (words > 20) { v += 0.15; a += 0.06; }
+    if (words > 50) { v += 0.10; }
+
+    // Cadence / Pace modulation
+    if (wpm > 175) {
+      a += 0.28;
+      v -= 0.15;
+    } else if (wpm >= 115 && wpm <= 165) {
+      v += 0.20;
+      a += 0.05;
+    } else if (elapsedSec > 6 && words < 5) {
+      v -= 0.22;
+      a -= 0.15;
+    }
+  }
+
+  // Visual attention & focus modulation
+  if (S.faceState.alertActive) {
+    v -= 0.28;
+    a += 0.14;
+  } else if (S.faceState.direction === 'Center' && S.faceState.gaze === 'Centered') {
+    v += 0.12;
+  }
+
+  // Clamping to circumplex radius limits
+  v = Math.max(-0.80, Math.min(0.80, v));
+  a = Math.max(-0.80, Math.min(0.80, a));
+
+  // Center (105, 80), radius factor 42 in 210x160 SVG
+  const targetX = Math.round(105 + (v * 42));
+  const targetY = Math.round(80 - (a * 42));
+
+  // Determine emotional state and micro-tip
+  let stateTitle = 'Focused · Optimal Flow';
+  let tip = 'Good delivery cadence. Maintaining direct camera focus.';
+
+  if (S.faceState.alertActive) {
+    stateTitle = 'Distracted · Attention Diverged';
+    tip = 'Face orientation shifted away. Re-center to project executive presence.';
+  } else if (v >= 0.15 && a >= 0.20) {
+    stateTitle = a > 0.45 ? 'High Energy & Confident' : 'Focused · Optimal Flow';
+    tip = 'Strong pacing and clear engagement. Keep this steady tone.';
+  } else if (v >= 0.05 && a < 0.20) {
+    stateTitle = a < -0.15 ? 'Calm & Composed' : 'Composed & Steady';
+    tip = 'Measured cadence. Maintain voice projection through to the conclusion.';
+  } else if (v < 0.05 && a >= 0.15) {
+    stateTitle = a > 0.40 ? 'Tense · Fast Cadence' : 'Pressured Activation';
+    tip = 'Pacing is rapid. Take a brief breath pause between key ideas.';
+  } else {
+    stateTitle = a < -0.15 ? 'Hesitant · Extended Pause' : 'Reserved Delivery';
+    tip = 'Elaborate on your actions using a specific metric or concrete example.';
+  }
+
+  // Update DOM elements
+  const dot = $('#liveCmaDotGroup');
+  if (dot) dot.style.transform = `translate(${targetX}px, ${targetY}px)`;
+
+  const stateWordEl = $('#liveCmaStateWord');
+  if (stateWordEl) stateWordEl.textContent = stateTitle;
+
+  const tipEl = $('#liveCmaTip');
+  if (tipEl) tipEl.textContent = tip;
+
+  const valArousalEl = $('#liveCmaValArousal');
+  if (valArousalEl) {
+    const vStr = (v >= 0 ? '+' : '') + v.toFixed(2);
+    const aStr = (a >= 0 ? '+' : '') + a.toFixed(2);
+    valArousalEl.textContent = `V: ${vStr} · A: ${aStr}`;
+  }
+}
+
 async function startFaceTracking() {
   if (!S.setup.face || !S.stream?.getVideoTracks().length) return;
   if (S.faceModel) {
@@ -2319,62 +3097,166 @@ async function startFaceTracking() {
     startFaceInterval();
   } catch (e) {
     console.warn('MediaPipe model load error', e);
-    if ($('#faceStatus')) $('#faceStatus').textContent = 'Unavailable';
+    if ($('#faceStatus')) $('#faceStatus').textContent = 'Tracking (Heuristic)';
+    startFaceInterval();
   }
 }
 
 function startFaceInterval() {
   if (S.faceInterval) clearInterval(S.faceInterval);
-  S.faceInterval = setInterval(() => {
-    if (!S.sessionLive || !S.faceModel) return;
-    const video = $('#cameraSource');
-    if (video.readyState < 2 || !video.videoWidth) return;
-    try {
-      const result = S.faceModel.detectForVideo(video, performance.now());
-      const faces = result.faceLandmarks || [];
-      const count = faces.length;
-      let direction = 'center', gaze = 'uncertain';
-      if (count === 1) {
-        const points = faces[0], nose = points[1], left = points[234], right = points[454];
-        if (nose && left && right) {
-          const center = (left.x + right.x) / 2;
-          const ratio = (nose.x - center) / Math.max(0.05, Math.abs(right.x - left.x));
-          direction = ratio < -0.17 ? 'Turned left' : ratio > 0.17 ? 'Turned right' : 'Center';
-        }
-        const rightIris = points[468], leftIris = points[473], rc1 = points[33], rc2 = points[133], lc1 = points[362], lc2 = points[263];
-        if (direction === 'Center' && rightIris && leftIris && rc1 && rc2 && lc1 && lc2) {
-          const frac = (iris, a, b) => ((iris.x - Math.min(a.x, b.x)) / Math.max(0.01, Math.abs(a.x - b.x)));
-          const mean = (frac(rightIris, rc1, rc2) + frac(leftIris, lc1, lc2)) / 2;
-          gaze = mean < 0.29 ? 'Looking left' : mean > 0.71 ? 'Looking right' : 'Centered';
-        }
-      }
-      S.faceState.count = count;
-      S.faceState.direction = direction;
-      S.faceState.gaze = gaze;
-      if ($('#gazeDirection')) $('#gazeDirection').textContent = gaze;
-      if ($('#facesCount')) $('#facesCount').textContent = String(count);
-      if ($('#headDirection')) $('#headDirection').textContent = direction;
+  updateLiveCma();
 
-      const key = count === 0 ? 'no-face' : count > 1 ? 'multiple-faces' : direction !== 'Center' ? 'head-turned' : 'normal';
-      if (key !== S.faceState.key) {
-        S.faceState.key = key;
-        S.faceState.since = Date.now();
-      } else if (key !== 'normal' && Date.now() - S.faceState.since > 2500) {
-        const message = key === 'no-face' ? 'Candidate out of frame for ~2.5 seconds' : key === 'multiple-faces' ? 'Multiple faces detected in frame' : 'Head orientation deviated from center';
-        logEvent(key, message);
-        S.faceState.since = Date.now() + 10000;
-      }
-    } catch (e) {
-      console.warn('Face landmark iteration error', e.message);
-      clearInterval(S.faceInterval);
-      S.faceInterval = null;
+  S.faceInterval = setInterval(() => {
+    if (!S.sessionLive) return;
+    const video = $('#cameraSource');
+    if (!video || video.readyState < 2 || !video.videoWidth) {
+      updateLiveCma();
+      return;
     }
-  }, 950);
+
+    let count = 1;
+    let direction = 'Center';
+    let gaze = 'Centered';
+    let isDistracted = false;
+    let alertKey = 'normal';
+    let alertIcon = '👀';
+    let alertMessage = '';
+
+    if (S.faceModel) {
+      try {
+        const result = S.faceModel.detectForVideo(video, performance.now());
+        const faces = result.faceLandmarks || [];
+        count = faces.length;
+
+        if (count === 0) {
+          direction = '—';
+          gaze = '—';
+          isDistracted = true;
+          alertKey = 'no-face';
+          alertIcon = '👤';
+          alertMessage = 'Face out of frame. Please center yourself in the camera.';
+        } else if (count > 1) {
+          isDistracted = true;
+          alertKey = 'multiple-faces';
+          alertIcon = '👥';
+          alertMessage = 'Multiple faces detected. Please maintain private session focus.';
+        } else {
+          const points = faces[0];
+          const nose = points[1];
+          const left = points[234];
+          const right = points[454];
+          const topHead = points[10];
+          const chin = points[152];
+
+          // Horizontal Yaw (Head turn left / right)
+          if (nose && left && right) {
+            const center = (left.x + right.x) / 2;
+            const faceWidth = Math.max(0.04, Math.abs(right.x - left.x));
+            const yawRatio = (nose.x - center) / faceWidth;
+            if (yawRatio < -0.16) {
+              direction = 'Turned left';
+              isDistracted = true;
+              alertKey = 'turned-left';
+              alertIcon = '👀';
+              alertMessage = 'Looking away to the left. Re-center your face forward.';
+            } else if (yawRatio > 0.16) {
+              direction = 'Turned right';
+              isDistracted = true;
+              alertKey = 'turned-right';
+              alertIcon = '👀';
+              alertMessage = 'Looking away to the right. Look toward the camera.';
+            } else {
+              direction = 'Center';
+            }
+          }
+
+          // Vertical Pitch (Looking down at phone / notes / desk)
+          if (nose && topHead && chin) {
+            const faceHeight = Math.max(0.05, Math.abs(chin.y - topHead.y));
+            const midY = (topHead.y + chin.y) / 2;
+            const pitchRatio = (nose.y - midY) / faceHeight;
+            if (pitchRatio > 0.13) {
+              direction = 'Looking down';
+              if (!isDistracted) {
+                isDistracted = true;
+                alertKey = 'looking-down';
+                alertIcon = '⚠️';
+                alertMessage = 'Looking down detected. Keep your head up and face the camera.';
+              }
+            } else if (pitchRatio < -0.16) {
+              direction = 'Looking up';
+            }
+          }
+
+          // Iris Eye Gaze Tracking
+          const rightIris = points[468], leftIris = points[473], rc1 = points[33], rc2 = points[133], lc1 = points[362], lc2 = points[263];
+          if (direction === 'Center' && rightIris && leftIris && rc1 && rc2 && lc1 && lc2) {
+            const frac = (iris, a, b) => ((iris.x - Math.min(a.x, b.x)) / Math.max(0.01, Math.abs(a.x - b.x)));
+            const mean = (frac(rightIris, rc1, rc2) + frac(leftIris, lc1, lc2)) / 2;
+            if (mean < 0.28) {
+              gaze = 'Looking left';
+              if (!isDistracted) {
+                isDistracted = true;
+                alertKey = 'gaze-left';
+                alertIcon = '👀';
+                alertMessage = 'Eyes shifted left. Look directly into the camera lens.';
+              }
+            } else if (mean > 0.72) {
+              gaze = 'Looking right';
+              if (!isDistracted) {
+                isDistracted = true;
+                alertKey = 'gaze-right';
+                alertIcon = '👀';
+                alertMessage = 'Eyes shifted right. Look directly into the camera lens.';
+              }
+            } else {
+              gaze = 'Centered';
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Face landmark iteration error', e.message);
+      }
+    }
+
+    // Update signal telemetry indicators
+    S.faceState.count = count;
+    S.faceState.direction = direction;
+    S.faceState.gaze = gaze;
+    if ($('#gazeDirection')) $('#gazeDirection').textContent = gaze;
+    if ($('#facesCount')) $('#facesCount').textContent = String(count);
+    if ($('#headDirection')) $('#headDirection').textContent = direction;
+
+    // Distraction alert trigger with 1.4s debounce
+    if (isDistracted) {
+      if (S.faceState.key !== alertKey) {
+        S.faceState.key = alertKey;
+        S.faceState.since = Date.now();
+      } else if (Date.now() - S.faceState.since >= 1400) {
+        showLiveFocusAlert(alertIcon, alertMessage, alertKey);
+        if (!S.faceState.loggedAlert) {
+          logEvent(alertKey, alertMessage);
+          S.faceState.loggedAlert = true;
+        }
+      }
+    } else {
+      if (S.faceState.alertActive) {
+        hideLiveFocusAlert();
+      }
+      S.faceState.key = 'normal';
+      S.faceState.since = 0;
+      S.faceState.loggedAlert = false;
+    }
+
+    // Live CMA Affect update
+    updateLiveCma();
+  }, 850);
 }
 
 function stopFaceTracking() {
   if (S.faceInterval) clearInterval(S.faceInterval);
   S.faceInterval = null;
+  hideLiveFocusAlert();
 }
 
 // -----------------------------------------------------------------------------
@@ -2463,9 +3345,9 @@ function computeCmaTrajectory(questions, checkin = {}) {
     v = Math.max(-0.82, Math.min(0.82, v));
     a = Math.max(-0.82, Math.min(0.82, a));
 
-    // Map to SVG coordinates: Center (120, 105), radius factor 56
-    let cx = Math.round(120 + (v * 56));
-    let cy = Math.round(105 - (a * 56));
+    // Map to SVG coordinates: Center (160, 110), radius factor 56
+    let cx = Math.round(160 + (v * 56));
+    let cy = Math.round(110 - (a * 56));
 
     // Descriptive affect classification
     let stateLabel = '';
@@ -2513,15 +3395,15 @@ function computeCmaTrajectory(questions, checkin = {}) {
     let anchor = 'middle';
     let labelX = p.cx;
     let labelY = p.cy - 7;
-    if (p.cx > 155) {
+    if (p.cx > 195) {
       anchor = 'end';
       labelX = p.cx - 8;
       labelY = p.cy + 3;
-    } else if (p.cx < 85) {
+    } else if (p.cx < 125) {
       anchor = 'start';
       labelX = p.cx + 8;
       labelY = p.cy + 3;
-    } else if (p.cy > 110) {
+    } else if (p.cy > 115) {
       labelY = p.cy + 13;
     }
     return { ...p, anchor, labelX, labelY };
@@ -2610,9 +3492,28 @@ async function renderReport() {
     ? `<polyline points="${cmaPoints.map(p => `${p.cx},${p.cy}`).join(' ')}" fill="none" stroke="#38325a" stroke-width="1.8" stroke-dasharray="3 3"/>`
     : '';
   const dotsSvg = cmaPoints.map(p => `
-    <circle cx="${p.cx}" cy="${p.cy}" r="5" fill="#38325a" stroke="#ffffff" stroke-width="1.5"/>
-    <text x="${p.labelX}" y="${p.labelY}" text-anchor="${p.anchor}" font-size="9" font-weight="700" fill="#38325a">Q${p.qNum}</text>
+    <g class="cma-pt" tabindex="0" role="img" aria-label="Prompt ${p.qNum}: ${p.label}" style="cursor: pointer;">
+      <title>Prompt ${p.qNum}: ${p.label} (${p.metrics})</title>
+      <circle cx="${p.cx}" cy="${p.cy}" r="5" fill="#38325a" stroke="#ffffff" stroke-width="1.5"/>
+      <text x="${p.labelX}" y="${p.labelY}" text-anchor="${p.anchor}" font-size="9" font-weight="700" fill="#38325a">Q${p.qNum}</text>
+    </g>
   `).join('');
+
+  const quadrantCounts = { q1: 0, q2: 0, q3: 0, q4: 0 };
+  cmaPoints.forEach(p => {
+    if (p.v >= 0 && p.a >= 0) quadrantCounts.q1++;
+    else if (p.v < 0 && p.a >= 0) quadrantCounts.q2++;
+    else if (p.v < 0 && p.a < 0) quadrantCounts.q3++;
+    else quadrantCounts.q4++;
+  });
+  let dominantQuad = 'q1';
+  let maxCount = -1;
+  for (const [q, count] of Object.entries(quadrantCounts)) {
+    if (count > maxCount) {
+      maxCount = count;
+      dominantQuad = q;
+    }
+  }
 
   $('#view').innerHTML = `
     <div class="content">
@@ -2639,50 +3540,51 @@ async function renderReport() {
         <div class="cma-hero-title-row">
           <div>
             <div style="display: flex; align-items: center; gap: 8px;">
-              <span class="pill-badge wash-plum" style="font-size: 11px;">SERVICE DESIGN CORE</span>
+              <span class="pill-badge" style="font-size: 11px; font-weight: 700; background: #D7D7F4; color: #38325a;">PSYCHOLOGICAL TRAJECTORY</span>
               <h2 style="font-size: 20px; font-weight: 700; color: var(--color-ink); margin: 0;">Circumplex Model of Affect (CMA)</h2>
             </div>
             <p style="font-size: 13px; color: var(--color-muted); margin-top: 4px;">Candidate affective trajectory plotted across Valence and Arousal activation dimensions.</p>
           </div>
-          <div style="font-size: 12px; font-weight: 700; color: var(--color-plum);">
-            Baseline: ${esc(energy)} energy · ${esc(feeling)}
+          <div class="pill-badge wash-plum" style="font-size: 12px; font-weight: 700; padding: 6px 14px; display: inline-flex; align-items: center; gap: 6px;">
+            ${rIcon("heart", 14)}
+            <span>Baseline: <strong>${esc(energy)}</strong> energy · <strong>${esc(feeling)}</strong></span>
           </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 280px 1fr; gap: 28px; align-items: center;">
+        <div style="display: grid; grid-template-columns: 330px 1fr; gap: 28px; align-items: center;">
           <!-- SVG Circumplex Chart with Pastel Quadrants -->
-          <div style="position: relative; width: 100%; aspect-ratio: 1.1; display: flex; align-items: center; justify-content: center;">
-            <svg viewBox="0 0 240 210" style="width: 100%; height: 100%;">
+          <div style="position: relative; width: 100%; aspect-ratio: 1.45; display: flex; align-items: center; justify-content: center;">
+            <svg viewBox="0 0 320 220" style="width: 100%; height: 100%; overflow: visible;" role="img" aria-label="Circumplex Affect Chart">
               <defs>
                 <clipPath id="circleClip">
-                  <circle cx="120" cy="105" r="72" />
+                  <circle cx="160" cy="110" r="72" />
                 </clipPath>
               </defs>
 
               <!-- Outer Circle Background with Pastel Quadrants -->
               <g clip-path="url(#circleClip)">
                 <!-- Q2: Top-Left (Unpleasant / High Energy - Peach #FFEBE3) -->
-                <rect x="40" y="25" width="80" height="80" fill="#FFEBE3" />
+                <rect x="88" y="38" width="72" height="72" fill="#FFEBE3" />
                 <!-- Q1: Top-Right (Pleasant / High Energy - Lavender #E8E7FA) -->
-                <rect x="120" y="25" width="80" height="80" fill="#E8E7FA" />
+                <rect x="160" y="38" width="72" height="72" fill="#E8E7FA" />
                 <!-- Q3: Bottom-Left (Unpleasant / Low Energy - Mist #ECEEF2) -->
-                <rect x="40" y="105" width="80" height="80" fill="#ECEEF2" />
+                <rect x="88" y="110" width="72" height="72" fill="#ECEEF2" />
                 <!-- Q4: Bottom-Right (Pleasant / Low Energy - Mint #E4F6ED) -->
-                <rect x="120" y="105" width="80" height="80" fill="#E4F6ED" />
+                <rect x="160" y="110" width="72" height="72" fill="#E4F6ED" />
               </g>
 
               <!-- Outer boundary stroke -->
-              <circle cx="120" cy="105" r="72" fill="none" stroke="#e7e5ef" stroke-width="1.5"/>
+              <circle cx="160" cy="110" r="72" fill="none" stroke="#e7e5ef" stroke-width="1.5"/>
 
               <!-- Central Cross Axes -->
-              <line x1="48" y1="105" x2="192" y2="105" stroke="#656375" stroke-width="1.2" stroke-dasharray="2 2" />
-              <line x1="120" y1="33" x2="120" y2="177" stroke="#656375" stroke-width="1.2" stroke-dasharray="2 2" />
+              <line x1="88" y1="110" x2="232" y2="110" stroke="#656375" stroke-width="1.2" stroke-dasharray="2 2" />
+              <line x1="160" y1="38" x2="160" y2="182" stroke="#656375" stroke-width="1.2" stroke-dasharray="2 2" />
 
-              <!-- Axis Labels -->
-              <text x="120" y="22" text-anchor="middle" font-size="8" font-weight="700" fill="#38325a" letter-spacing="1px">HIGH ACTIVATION</text>
-              <text x="120" y="196" text-anchor="middle" font-size="8" font-weight="700" fill="#565563" letter-spacing="1px">LOW ACTIVATION</text>
-              <text x="36" y="108" text-anchor="end" font-size="8" font-weight="700" fill="#565563">UNPLEASANT</text>
-              <text x="204" y="108" text-anchor="start" font-size="8" font-weight="700" fill="#38325a">PLEASANT</text>
+              <!-- Axis Labels with Generous Margin -->
+              <text x="160" y="24" text-anchor="middle" font-size="9" font-weight="700" fill="#38325a" letter-spacing="1px">HIGH ACTIVATION</text>
+              <text x="160" y="202" text-anchor="middle" font-size="9" font-weight="700" fill="#565563" letter-spacing="1px">LOW ACTIVATION</text>
+              <text x="78" y="113" text-anchor="end" font-size="9" font-weight="700" fill="#565563" letter-spacing="0.5px">UNPLEASANT</text>
+              <text x="242" y="113" text-anchor="start" font-size="9" font-weight="700" fill="#38325a" letter-spacing="0.5px">PLEASANT</text>
 
               <!-- Dynamic Trajectory Polyline -->
               ${trajectorySvg}
@@ -2694,20 +3596,32 @@ async function renderReport() {
 
           <!-- 4 Pastel Quadrant Info Cards -->
           <div class="cma-quadrant-grid">
-            <div class="cma-quadrant-card q1">
-              <div style="font-size: 13px; font-weight: 700; color: #38325a;">Q1 · High Activation / Pleasant</div>
+            <div class="cma-quadrant-card q1 ${dominantQuad === 'q1' ? 'active' : ''}">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-size: 13px; font-weight: 700; color: #38325a;">Q1 · High Activation / Pleasant</span>
+                ${dominantQuad === 'q1' ? '<span class="pill-badge" style="background: rgba(56,50,90,0.12); color: #38325a; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 6px;">DOMINANT</span>' : ''}
+              </div>
               <div style="font-size: 11px; color: #565563;">State: Confident, Focused, Optimal Flow</div>
             </div>
-            <div class="cma-quadrant-card q2">
-              <div style="font-size: 13px; font-weight: 700; color: #9c4221;">Q2 · High Activation / Unpleasant</div>
+            <div class="cma-quadrant-card q2 ${dominantQuad === 'q2' ? 'active' : ''}">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-size: 13px; font-weight: 700; color: #9c4221;">Q2 · High Activation / Unpleasant</span>
+                ${dominantQuad === 'q2' ? '<span class="pill-badge" style="background: rgba(156,66,33,0.14); color: #9c4221; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 6px;">DOMINANT</span>' : ''}
+              </div>
               <div style="font-size: 11px; color: #565563;">State: Tense, Anxious, Pressured</div>
             </div>
-            <div class="cma-quadrant-card q4">
-              <div style="font-size: 13px; font-weight: 700; color: #1e664e;">Q4 · Low Activation / Pleasant</div>
+            <div class="cma-quadrant-card q4 ${dominantQuad === 'q4' ? 'active' : ''}">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-size: 13px; font-weight: 700; color: #1e664e;">Q4 · Low Activation / Pleasant</span>
+                ${dominantQuad === 'q4' ? '<span class="pill-badge" style="background: rgba(30,102,78,0.14); color: #1e664e; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 6px;">DOMINANT</span>' : ''}
+              </div>
               <div style="font-size: 11px; color: #565563;">State: Calm, Composed, Reflective</div>
             </div>
-            <div class="cma-quadrant-card q3">
-              <div style="font-size: 13px; font-weight: 700; color: #475569;">Q3 · Low Activation / Unpleasant</div>
+            <div class="cma-quadrant-card q3 ${dominantQuad === 'q3' ? 'active' : ''}">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-size: 13px; font-weight: 700; color: #475569;">Q3 · Low Activation / Unpleasant</span>
+                ${dominantQuad === 'q3' ? '<span class="pill-badge" style="background: rgba(71,85,105,0.14); color: #475569; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 6px;">DOMINANT</span>' : ''}
+              </div>
               <div style="font-size: 11px; color: #565563;">State: Fatigued, Hesitant, Reserved</div>
             </div>
           </div>
