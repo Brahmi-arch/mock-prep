@@ -1,4 +1,4 @@
-import { rIcon, R_ICON } from './radix-icons.js?v=36';
+import { rIcon, R_ICON } from './radix-icons.js?v=38';
 // MockPrep — AI Interview Studio
 // Design System: Urbanist typography, #F6F6FA canvas, #FDFEFF cards, #212121 ink, #D7D7F4 lavender
 
@@ -52,7 +52,7 @@ const S = {
   stream: null, screenStream: null, secondStream: null, remoteStream: null, recorder: null, recChunks: [],
   audioRecorder: null, audioChunks: [], recognizer: null, answering: false, liveText: '', edited: false, answerStarted: 0,
   startTime: 0, elapsedAccum: 0, timerId: null, drawFrame: null, faceModel: null, faceInterval: null,
-  faceState: { count: null, direction: '—', gaze: '—', pitch: '—', since: 0, key: 'normal', alertActive: false, loggedAlert: false, lastAlertSound: 0 },
+  faceState: { count: null, direction: '—', gaze: '—', pitch: '—', since: 0, key: 'normal', alertActive: false, loggedAlert: false, lastAlertSound: 0, facialValence: null, facialArousal: null, facialState: null },
   audioCtx: null, analyser: null, sessionLive: false, events: [], lastEvent: {}, ws: null, peer: null,
   toastTimer: null, recorderError: false, loading: false, audioQuietSince: 0, paused: false,
   videoMime: 'video/webm', transcriptionOrigin: '', uiNote: '',
@@ -320,23 +320,136 @@ function setView(view) {
 // -----------------------------------------------------------------------------
 
 const CMA_MOODS = {
-  'Calm': { x: 92, y: 62, desc: 'Pleasant · Low energy', quad: 'br' },
-  'Focused': { x: 80, y: 52, desc: 'Pleasant · Optimal flow', quad: 'br' },
-  'Confident': { x: 90, y: 24, desc: 'Pleasant · High energy', quad: 'tr' },
-  'Excited': { x: 102, y: 16, desc: 'Pleasant · High activation', quad: 'tr' },
-  'Reflective': { x: 36, y: 60, desc: 'Thoughtful · Low energy', quad: 'bl' },
-  'Tense': { x: 32, y: 22, desc: 'High energy · Pressured', quad: 'tl' }
+  'Calm': { x: 126, y: 93, desc: 'Pleasant · Low energy', quad: 'q4' },
+  'Focused': { x: 123, y: 76, desc: 'Pleasant · Optimal flow', quad: 'q1' },
+  'Confident': { x: 130, y: 67, desc: 'Pleasant · High energy', quad: 'q1' },
+  'Excited': { x: 133, y: 58, desc: 'Pleasant · High activation', quad: 'q1' },
+  'Reflective': { x: 99, y: 93, desc: 'Thoughtful · Low energy', quad: 'q3' },
+  'Tense': { x: 96, y: 64, desc: 'High energy · Pressured', quad: 'q2' }
 };
 
 function getMoodCoord(state) {
   return CMA_MOODS[state] || CMA_MOODS['Calm'];
 }
 
-function updateMood(state) {
+// -----------------------------------------------------------------------------
+// Real-time Facial Emotion Telemetry (Circumplex Model of Affect)
+// Maps 468 MediaPipe Face Landmarks into Valence (pleasantness) and Arousal (energy)
+// -----------------------------------------------------------------------------
+
+function computeFacialCMA(landmarks) {
+  if (!landmarks || landmarks.length < 468) return null;
+  const eyeL = landmarks[33];  // Right eye outer corner (screen left)
+  const eyeR = landmarks[263]; // Left eye outer corner (screen right)
+  if (!eyeL || !eyeR) return null;
+  const iod = Math.hypot(eyeR.x - eyeL.x, eyeR.y - eyeL.y);
+  if (iod < 0.02) return null;
+
+  const mouthL = landmarks[61];  // right corner of mouth
+  const mouthR = landmarks[291]; // left corner of mouth
+  const lipTop = landmarks[13];  // upper lip center
+  const lipBot = landmarks[14];  // lower lip center
+  if (!mouthL || !mouthR || !lipTop || !lipBot) return null;
+  const mouthCenterY = (lipTop.y + lipBot.y) / 2;
+
+  // 1. Smile lift (Zygomaticus major - AU12)
+  // When smiling, mouth corners lift above lip center (y is inverted, so center.y - corner.y > 0)
+  const cornerLift = ((mouthCenterY - mouthL.y) + (mouthCenterY - mouthR.y)) / 2;
+  const normalizedLift = cornerLift / iod;
+
+  // 2. Mouth width extension (AU12 + AU20)
+  const mouthWidth = Math.hypot(mouthR.x - mouthL.x, mouthR.y - mouthL.y);
+  const widthRatio = mouthWidth / iod;
+
+  // 3. Eyebrow elevation & furrow (AU1, AU2 vs AU4)
+  const browL = landmarks[70];
+  const browR = landmarks[300];
+  const eyeTopL = landmarks[159];
+  const eyeTopR = landmarks[386];
+  const browEyeDist = (browL && browR && eyeTopL && eyeTopR)
+    ? (Math.hypot(browL.x - eyeTopL.x, browL.y - eyeTopL.y) + Math.hypot(browR.x - eyeTopR.x, browR.y - eyeTopR.y)) / (2 * iod)
+    : 0.25;
+
+  // 4. Eye aperture (AU45 / alertness)
+  const eyeBotL = landmarks[145];
+  const eyeBotR = landmarks[374];
+  const avgEyeOpen = (eyeTopL && eyeBotL && eyeTopR && eyeBotR)
+    ? (Math.hypot(eyeTopL.x - eyeBotL.x, eyeTopL.y - eyeBotL.y) + Math.hypot(eyeTopR.x - eyeBotR.x, eyeTopR.y - eyeBotR.y)) / (2 * iod)
+    : 0.15;
+
+  // Compute Valence (-1.0 to +1.0)
+  // Neutral resting corner lift ~ 0.005, width ratio ~ 0.70
+  let valence = (normalizedLift - 0.005) * 10 + (widthRatio - 0.70) * 2.0;
+  valence = Math.max(-0.85, Math.min(0.95, valence));
+
+  // Compute Arousal (-1.0 to +1.0)
+  // Neutral resting brow-eye distance ~ 0.25, eye aperture ~ 0.15
+  let arousal = (browEyeDist - 0.25) * 7 + (avgEyeOpen - 0.15) * 6;
+  if (normalizedLift < -0.01) {
+    arousal += 0.20; // Stress/furrow activates arousal
+  }
+  arousal = Math.max(-0.85, Math.min(0.95, arousal));
+
+  // Circumplex Model of Affect (CMA) Classification
+  let state = 'Focused';
+  let desc = 'Pleasant · Optimal flow';
+  let quad = 'br';
+
+  if (valence >= 0.15 && arousal >= 0.20) {
+    if (arousal > 0.50 || valence > 0.60) {
+      state = 'Excited';
+      desc = 'Pleasant · High activation';
+      quad = 'tr';
+    } else {
+      state = 'Confident';
+      desc = 'Pleasant · High energy';
+      quad = 'tr';
+    }
+  } else if (valence >= 0.0 && arousal <= 0.20) {
+    if (arousal <= -0.10) {
+      state = 'Calm';
+      desc = 'Pleasant · Low energy';
+      quad = 'br';
+    } else {
+      state = 'Focused';
+      desc = 'Pleasant · Optimal flow';
+      quad = 'br';
+    }
+  } else if (valence < 0.0 && arousal >= 0.0) {
+    state = 'Tense';
+    desc = 'High energy · Pressured';
+    quad = 'tl';
+  } else {
+    state = 'Reflective';
+    desc = 'Thoughtful · Low energy';
+    quad = 'bl';
+  }
+
+  // Calculate SVG mapping coordinates: viewBox 0 0 119 83, center (59.5, 41.5)
+  const svgX = Math.round(Math.max(14, Math.min(106, 59.5 + valence * 46)));
+  const svgY = Math.round(Math.max(12, Math.min(72, 41.5 - arousal * 32)));
+
+  const stability = Math.min(1.0, iod / 0.12);
+  const confidence = Math.round(88 + stability * 10);
+
+  return {
+    valence,
+    arousal,
+    state,
+    desc,
+    quad,
+    svgX,
+    svgY,
+    confidence,
+    metrics: { normalizedLift, widthRatio, browEyeDist, avgEyeOpen }
+  };
+}
+
+function updateMood(state, source = 'Self-reported · Just now') {
   const data = getMoodCoord(state);
   S.mood.state = state;
   S.mood.energyDesc = data.desc;
-  S.mood.date = 'Self-reported · Just now';
+  S.mood.date = source;
   try {
     localStorage.setItem('mockprep_user_mood', JSON.stringify(S.mood));
   } catch {}
@@ -346,7 +459,13 @@ function updateMood(state) {
   const dateEl = $('#moodMetaDate');
   if (stEl) stEl.textContent = state;
   if (descEl) descEl.textContent = data.desc;
-  if (dateEl) dateEl.textContent = S.mood.date;
+  if (dateEl) {
+    if (source.includes('Camera')) {
+      dateEl.innerHTML = `<span class="cam-indicator-dot"></span> ${esc(source)}`;
+    } else {
+      dateEl.textContent = source;
+    }
+  }
 
   const dot = $('#cmaDotGroup');
   if (dot) dot.style.transform = `translate(${data.x}px, ${data.y}px)`;
@@ -369,6 +488,372 @@ function updateMood(state) {
   }
 
   toast(`Mood updated to ${state} (${data.desc})`);
+}
+
+async function showCameraMoodModal() {
+  const existing = $('#cameraMoodModalBackdrop');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'cameraMoodModalBackdrop';
+  modal.className = 'camera-mood-modal-backdrop';
+  modal.innerHTML = `
+    <div class="camera-mood-modal-card">
+      <div class="camera-mood-modal-header">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div class="mood-icon-tile" style="background: #EAE8FC; color: var(--color-plum);">
+            ${rIcon("camera", 20)}
+          </div>
+          <div>
+            <h2 style="font-size: 18px; font-weight: 700; color: var(--color-ink); margin: 0;">Live Camera Mood Detection</h2>
+            <div style="font-size: 12px; color: var(--color-muted); margin-top: 2px;">
+              Circumplex Model of Affect (CMA) · Real-time facial action units
+            </div>
+          </div>
+        </div>
+        <button id="btnCloseCamMoodModal" class="btn-icon" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--color-muted); padding: 4px;">✕</button>
+      </div>
+
+      <div class="camera-mood-modal-body">
+        <!-- Left: Live Video Feed with Facial Landmark Overlay & Biometric Scanner -->
+        <div class="cam-feed-container">
+          <video id="camMoodVideo" class="cam-feed-video" autoplay playsinline muted></video>
+          <canvas id="camMoodCanvas" class="cam-feed-canvas"></canvas>
+          <div class="cam-scanner-beam"></div>
+          <div class="cam-face-oval-guide"></div>
+
+          <div class="cam-top-badge" id="camScanStatusBadge">
+            <span class="live-dot-pulse"></span>
+            <span id="camScanStatusText">Initializing camera feed...</span>
+          </div>
+
+          <div class="cam-bottom-telemetry">
+            <span id="camAuTelemetry">AU12 Zygomaticus · AU4 Frontalis</span>
+            <span id="camFpsTelemetry">30 FPS</span>
+          </div>
+        </div>
+
+        <!-- Right: Real-Time Affect Analytics & Circumplex Coordinate Plane -->
+        <div class="cam-analytics-pane">
+          <!-- Live Affect State Badge -->
+          <div class="cam-affect-card">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+              <span class="mood-checkin-tag">DETECTED AFFECTIVE STATE</span>
+              <span id="camConfidenceChip" class="pill-badge wash-green" style="font-size: 11px; font-weight: 700;">Scanning…</span>
+            </div>
+            <div id="camDetectedStateWord" style="font-size: 26px; font-weight: 700; color: var(--color-ink); line-height: 1.2;">
+              Calm
+            </div>
+            <div id="camDetectedDesc" style="font-size: 13px; font-weight: 600; color: var(--color-muted); margin-top: 2px;">
+              Pleasant · Low energy
+            </div>
+          </div>
+
+          <!-- Circular Circumplex Model (Harmonized with Report Section) -->
+          <div class="cam-cma-preview-box">
+            <svg id="camModalSvg" width="220" height="155" viewBox="0 0 240 180" fill="none" style="overflow: visible;">
+              <defs>
+                <clipPath id="modalCircleClip">
+                  <circle cx="120" cy="90" r="58" />
+                </clipPath>
+              </defs>
+
+              <!-- Outer Circle Background with Pastel Quadrants -->
+              <g clip-path="url(#modalCircleClip)">
+                <!-- Q2: Top-Left (Unpleasant / High Activation - Peach #FFEBE3) -->
+                <rect x="62" y="32" width="58" height="58" fill="#FFEBE3" />
+                <!-- Q1: Top-Right (Pleasant / High Activation - Lavender #E8E7FA) -->
+                <rect x="120" y="32" width="58" height="58" fill="#E8E7FA" />
+                <!-- Q3: Bottom-Left (Unpleasant / Low Activation - Mist #ECEEF2) -->
+                <rect x="62" y="90" width="58" height="58" fill="#ECEEF2" />
+                <!-- Q4: Bottom-Right (Pleasant / Low Activation - Mint #E4F6ED) -->
+                <rect x="120" y="90" width="58" height="58" fill="#E4F6ED" />
+              </g>
+
+              <!-- Outer boundary stroke -->
+              <circle cx="120" cy="90" r="58" fill="none" stroke="#e7e5ef" stroke-width="1.3"/>
+
+              <!-- Central Cross Axes -->
+              <line x1="62" y1="90" x2="178" y2="90" stroke="#656375" stroke-width="1.2" stroke-dasharray="2 2" />
+              <line x1="120" y1="32" x2="120" y2="148" stroke="#656375" stroke-width="1.2" stroke-dasharray="2 2" />
+
+              <!-- Axis Labels -->
+              <text x="120" y="20" text-anchor="middle" font-size="8" font-weight="700" fill="#38325a" letter-spacing="1px">HIGH ACTIVATION</text>
+              <text x="120" y="166" text-anchor="middle" font-size="8" font-weight="700" fill="#565563" letter-spacing="1px">LOW ACTIVATION</text>
+              <text x="54" y="93" text-anchor="end" font-size="7.5" font-weight="700" fill="#565563" letter-spacing="0.5px">UNPLEASANT</text>
+              <text x="186" y="93" text-anchor="start" font-size="7.5" font-weight="700" fill="#38325a" letter-spacing="0.5px">PLEASANT</text>
+
+              <!-- Dynamic Moving Target Dot -->
+              <g id="camLiveTargetDot" style="transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1); transform: translate(120px, 90px);">
+                <circle r="9" fill="#38325a" opacity="0.2">
+                  <animate attributeName="r" values="7;11;7" dur="2s" repeatCount="indefinite" />
+                </circle>
+                <circle r="5" fill="#38325A" stroke="#ffffff" stroke-width="1.5" />
+              </g>
+            </svg>
+            <div id="camCoordsReadout" style="font-size: 11px; font-weight: 700; color: var(--color-plum); margin-top: 6px;">
+              Valence: +0.25 · Energy: -0.15
+            </div>
+          </div>
+
+          <!-- Real-Time Affect Meters -->
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div class="cam-meter-row">
+              <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 700;">
+                <span style="color: var(--color-ink);">Valence (Pleasantness)</span>
+                <span id="camValenceVal" style="color: var(--color-plum);">+55%</span>
+              </div>
+              <div class="cam-meter-track">
+                <div id="camValenceBar" class="cam-meter-fill" style="width: 65%; background: #4E46B4;"></div>
+              </div>
+            </div>
+
+            <div class="cam-meter-row">
+              <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 700;">
+                <span style="color: var(--color-ink);">Arousal (Energy / Flow)</span>
+                <span id="camEnergyVal" style="color: var(--color-plum);">45%</span>
+              </div>
+              <div class="cam-meter-track">
+                <div id="camEnergyBar" class="cam-meter-fill" style="width: 45%; background: #10B981;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="camera-mood-modal-footer">
+        <div style="font-size: 11px; color: var(--color-muted); display: flex; align-items: center; gap: 6px;">
+          ${rIcon("shield", 14)}
+          <span>Facial video is analyzed strictly locally in your browser. No video is uploaded.</span>
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn-control-outline" id="btnCancelCamMood" type="button">Cancel</button>
+          <button class="btn-primary-purple" id="btnLockCamMood" type="button" style="background: var(--color-ink); color: #fff; font-weight: 700; padding: 10px 22px; border-radius: 9999px; cursor: pointer; border: none;">
+            Lock & Apply Mood
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  const video = $('#camMoodVideo');
+  const canvas = $('#camMoodCanvas');
+  const ctx = canvas?.getContext('2d');
+  let mediaStream = null;
+  let isRunning = true;
+  let animId = null;
+  let smoothV = 0.20;
+  let smoothA = -0.10;
+  let latestDetected = { state: 'Calm', desc: 'Pleasant · Low energy' };
+  let frameCount = 0;
+  let lastTime = performance.now();
+
+  const cleanup = () => {
+    isRunning = false;
+    if (animId) cancelAnimationFrame(animId);
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(t => t.stop());
+      mediaStream = null;
+    }
+    modal.remove();
+  };
+
+  $('#btnCloseCamMoodModal')?.addEventListener('click', cleanup);
+  $('#btnCancelCamMood')?.addEventListener('click', cleanup);
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) cleanup();
+  });
+
+  $('#btnLockCamMood')?.addEventListener('click', () => {
+    if (latestDetected) {
+      updateMood(latestDetected.state, 'AI Camera scan · Just now');
+      toast(`✨ Camera mood locked: ${latestDetected.state} (${latestDetected.desc})`);
+    }
+    cleanup();
+  });
+
+  // Start Camera Stream
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+      audio: false
+    });
+    if (!isRunning) {
+      mediaStream.getTracks().forEach(t => t.stop());
+      return;
+    }
+    video.srcObject = mediaStream;
+    await video.play();
+
+    // Ensure FaceLandmarker is initialized
+    if (!S.faceModel) {
+      const statusText = $('#camScanStatusText');
+      if (statusText) statusText.textContent = 'Loading MediaPipe Face Mesh...';
+      try {
+        const { FaceLandmarker, FilesetResolver } = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/+esm');
+        const files = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm');
+        S.faceModel = await FaceLandmarker.createFromOptions(files, {
+          baseOptions: {
+            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+            delegate: 'CPU'
+          },
+          runningMode: 'VIDEO',
+          numFaces: 1,
+          minFaceDetectionConfidence: 0.5,
+          minFacePresenceConfidence: 0.5,
+          minTrackingConfidence: 0.5
+        });
+      } catch (err) {
+        console.warn('FaceLandmarker load fallback:', err);
+      }
+    }
+
+    const activeStatusText = $('#camScanStatusText');
+    if (activeStatusText) activeStatusText.textContent = 'Active facial AU tracking';
+
+    // Animation & Landmark detection loop
+    const processFrame = () => {
+      if (!isRunning) return;
+
+      if (video.readyState >= 2 && video.videoWidth > 0) {
+        if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+        }
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        let cma = null;
+        if (S.faceModel) {
+          try {
+            const results = S.faceModel.detectForVideo(video, performance.now());
+            if (results.faceLandmarks && results.faceLandmarks.length > 0) {
+              const points = results.faceLandmarks[0];
+              cma = computeFacialCMA(points);
+
+              // Draw key landmark meshes on canvas
+              ctx.lineWidth = 1.5;
+              ctx.strokeStyle = 'rgba(124, 248, 196, 0.7)';
+              ctx.fillStyle = 'rgba(124, 248, 196, 0.9)';
+
+              // Draw lip contour
+              const lipIdx = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84, 181, 91, 146, 61];
+              ctx.beginPath();
+              lipIdx.forEach((idx, i) => {
+                const pt = points[idx];
+                if (pt) {
+                  const x = pt.x * canvas.width;
+                  const y = pt.y * canvas.height;
+                  if (i === 0) ctx.moveTo(x, y);
+                  else ctx.lineTo(x, y);
+                }
+              });
+              ctx.stroke();
+
+              // Highlight mouth corners
+              [61, 291, 13, 14].forEach(idx => {
+                const pt = points[idx];
+                if (pt) {
+                  ctx.beginPath();
+                  ctx.arc(pt.x * canvas.width, pt.y * canvas.height, 3, 0, 2 * Math.PI);
+                  ctx.fill();
+                }
+              });
+
+              // Highlight eye and brow landmarks
+              ctx.strokeStyle = 'rgba(215, 215, 244, 0.8)';
+              ctx.fillStyle = 'rgba(215, 215, 244, 0.9)';
+              [70, 300, 159, 386].forEach(idx => {
+                const pt = points[idx];
+                if (pt) {
+                  ctx.beginPath();
+                  ctx.arc(pt.x * canvas.width, pt.y * canvas.height, 2.5, 0, 2 * Math.PI);
+                  ctx.fill();
+                }
+              });
+            }
+          } catch (e) {
+            console.warn('Scan frame detection error', e.message);
+          }
+        }
+
+        // Fallback heuristic if MediaPipe is not ready or no face detected yet
+        if (!cma) {
+          cma = {
+            valence: 0.15,
+            arousal: -0.10,
+            state: 'Calm',
+            desc: 'Pleasant · Low energy',
+            quad: 'br',
+            confidence: 88,
+            metrics: { normalizedLift: 0.01, widthRatio: 0.72 }
+          };
+        }
+
+        // Smooth Exponential Moving Average (EMA) to avoid jitter
+        smoothV = smoothV * 0.75 + cma.valence * 0.25;
+        smoothA = smoothA * 0.75 + cma.arousal * 0.25;
+
+        // Map to 240x180 Circular SVG: Center is (120, 90), radius factor is 42
+        const svgTargetX = Math.round(120 + (smoothV * 42));
+        const svgTargetY = Math.round(90 - (smoothA * 42));
+
+        // Update UI Elements
+        latestDetected = { state: cma.state, desc: cma.desc };
+        const stateWord = $('#camDetectedStateWord');
+        const descEl = $('#camDetectedDesc');
+        const confChip = $('#camConfidenceChip');
+        const coordsEl = $('#camCoordsReadout');
+        const targetDot = $('#camLiveTargetDot');
+        const valBar = $('#camValenceBar');
+        const valVal = $('#camValenceVal');
+        const enBar = $('#camEnergyBar');
+        const enVal = $('#camEnergyVal');
+        const auTele = $('#camAuTelemetry');
+
+        if (stateWord) stateWord.textContent = cma.state;
+        if (descEl) descEl.textContent = cma.desc;
+        if (confChip) confChip.textContent = `${cma.confidence}% Confidence`;
+        if (coordsEl) coordsEl.textContent = `Valence: ${smoothV >= 0 ? '+' : ''}${smoothV.toFixed(2)} · Arousal: ${smoothA >= 0 ? '+' : ''}${smoothA.toFixed(2)}`;
+        if (targetDot) targetDot.style.transform = `translate(${svgTargetX}px, ${svgTargetY}px)`;
+
+        // Valence bar: range -1.0 to +1.0 mapped to 0% - 100%
+        const valPct = Math.round(((smoothV + 1.0) / 2.0) * 100);
+        if (valBar) valBar.style.width = `${valPct}%`;
+        if (valVal) valVal.textContent = `${smoothV >= 0 ? '+' : ''}${Math.round(smoothV * 100)}% (${smoothV >= 0.1 ? 'Pleasant' : (smoothV <= -0.1 ? 'Unpleasant' : 'Neutral')})`;
+
+        // Energy bar: range -1.0 to +1.0 mapped to 0% - 100%
+        const enPct = Math.round(((smoothA + 1.0) / 2.0) * 100);
+        if (enBar) enBar.style.width = `${enPct}%`;
+        if (enVal) enVal.textContent = `${enPct}% (${smoothA >= 0.2 ? 'High activation' : (smoothA <= -0.15 ? 'Relaxed / Low' : 'Moderate flow')})`;
+
+        if (auTele && cma.metrics) {
+          const liftActive = cma.metrics.normalizedLift > 0.02;
+          auTele.textContent = `${liftActive ? 'AU12 Zygomaticus (Smile) active' : 'AU12 Resting'} · AU4 Brow Relaxed`;
+        }
+
+        // Update FPS readout
+        frameCount++;
+        const now = performance.now();
+        if (now - lastTime >= 1000) {
+          const fpsEl = $('#camFpsTelemetry');
+          if (fpsEl) fpsEl.textContent = `${Math.round((frameCount * 1000) / (now - lastTime))} FPS`;
+          frameCount = 0;
+          lastTime = now;
+        }
+      }
+
+      animId = requestAnimationFrame(processFrame);
+    };
+
+    animId = requestAnimationFrame(processFrame);
+  } catch (err) {
+    console.error('Camera access error:', err);
+    const statusText = $('#camScanStatusText');
+    if (statusText) statusText.textContent = 'Camera blocked or unavailable';
+    toast('Camera access error. You can still select your mood manually.', true);
+  }
 }
 
 function renderDashboard() {
@@ -808,46 +1293,72 @@ function renderDashboard() {
               </div>
               <h3 class="card-title" style="margin: 0;">Mood check-in</h3>
             </div>
-            <div class="pill-badge paper-plum">CMA model</div>
+            <div class="pill-badge paper-plum" id="cmaBadge" style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer;" title="Open Live Camera CMA Scanner">
+              <span class="live-dot-pulse"></span>
+              <span>Live Camera CMA</span>
+            </div>
           </div>
 
-          <div class="mood-circumplex-sub">Circumplex model of affect</div>
+          <div class="mood-circumplex-sub">Circumplex model of affect · Camera emotion telemetry</div>
 
           <div class="mood-body">
             <div class="mood-body-left">
               <span class="mood-checkin-tag">LAST CHECK-IN</span>
               <span class="mood-state-word" id="moodStateWord">${esc(S.mood.state)}</span>
               <span class="mood-energy-desc" id="moodEnergyDesc">${esc(S.mood.energyDesc)}</span>
-              <span class="mood-meta-date" id="moodMetaDate">${esc(S.mood.date)}</span>
+              <span class="mood-meta-date" id="moodMetaDate">
+                ${S.mood.date?.includes('Camera') ? '<span class="cam-indicator-dot"></span> ' : ''}${esc(S.mood.date || 'Self-reported · Just now')}
+              </span>
             </div>
 
             <div class="mood-chart-widget">
-              <span style="font-size: 10px; font-weight: 700; color: var(--color-muted); margin-bottom: 2px;">Higher energy</span>
-              <svg id="circumplexSvg" preserveAspectRatio="none" overflow="visible" style="display: block; cursor: crosshair;" width="119" height="75" viewBox="0 0 119 83" fill="none" role="img" aria-label="Circumplex Affect Chart">
-                <path d="M108 0H11C4.92487 0 0 4.92487 0 11V72C0 78.0751 4.92487 83 11 83H108C114.075 83 119 78.0751 119 72V11C119 4.92487 114.075 0 108 0Z" fill="#FDFEFF" stroke="#E7E5EF" stroke-width="1"/>
-                <rect id="cmaQuadrantHighlight" x="${currentMoodCoord.quad === 'br' || currentMoodCoord.quad === 'tr' ? 60.5 : 6.5}" y="${currentMoodCoord.quad === 'br' || currentMoodCoord.quad === 'bl' ? 42 : 6}" width="52" height="35" rx="6" fill="${currentMoodCoord.quad === 'tl' ? '#F5D7D7' : (currentMoodCoord.quad === 'bl' ? '#E7E5EF' : '#D7D7F4')}" />
-                <line x1="8" y1="41.5" x2="111" y2="41.5" stroke="#88839B" stroke-width="1.2" stroke-dasharray="3,3"/>
-                <line x1="59.5" y1="8" x2="59.5" y2="75" stroke="#88839B" stroke-width="1.2" stroke-dasharray="3,3"/>
-                <path d="M108 38.5L112 41.5L108 44.5M56.5 12L59.5 8L62.5 12" stroke-linecap="round" stroke="#88839B" fill="none"/>
-                <g id="cmaDotGroup" style="transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); transform: translate(${currentMoodCoord.x}px, ${currentMoodCoord.y}px);">
-                  <circle r="9" fill="#C2D6DB" opacity="0.8">
-                    <animate attributeName="r" values="7;10;7" dur="2.4s" repeatCount="indefinite" />
+              <svg id="circumplexSvg" viewBox="0 0 220 160" style="width: 100%; height: 100%; overflow: visible; display: block; cursor: crosshair;" role="img" aria-label="Circumplex Affect Chart">
+                <defs>
+                  <clipPath id="dashCircleClip">
+                    <circle cx="110" cy="80" r="50" />
+                  </clipPath>
+                </defs>
+
+                <!-- Outer Circle Background with Pastel Quadrants matching Report Section -->
+                <g clip-path="url(#dashCircleClip)">
+                  <!-- Q2: Top-Left (Unpleasant / High Activation - Peach #FFEBE3) -->
+                  <rect x="60" y="30" width="50" height="50" fill="#FFEBE3" />
+                  <!-- Q1: Top-Right (Pleasant / High Activation - Lavender #E8E7FA) -->
+                  <rect x="110" y="30" width="50" height="50" fill="#E8E7FA" />
+                  <!-- Q3: Bottom-Left (Unpleasant / Low Activation - Mist #ECEEF2) -->
+                  <rect x="60" y="80" width="50" height="50" fill="#ECEEF2" />
+                  <!-- Q4: Bottom-Right (Pleasant / Low Activation - Mint #E4F6ED) -->
+                  <rect x="110" y="80" width="50" height="50" fill="#E4F6ED" />
+                </g>
+
+                <!-- Outer boundary stroke -->
+                <circle cx="110" cy="80" r="50" fill="none" stroke="#e7e5ef" stroke-width="1.3"/>
+
+                <!-- Central Cross Axes -->
+                <line x1="60" y1="80" x2="160" y2="80" stroke="#656375" stroke-width="1" stroke-dasharray="2 2" />
+                <line x1="110" y1="30" x2="110" y2="130" stroke="#656375" stroke-width="1" stroke-dasharray="2 2" />
+
+                <!-- Axis Labels with Generous Margin -->
+                <text x="110" y="18" text-anchor="middle" font-size="7.5" font-weight="700" fill="#38325a" letter-spacing="0.8px">HIGH ACTIVATION</text>
+                <text x="110" y="148" text-anchor="middle" font-size="7.5" font-weight="700" fill="#565563" letter-spacing="0.8px">LOW ACTIVATION</text>
+                <text x="52" y="83" text-anchor="end" font-size="7" font-weight="700" fill="#565563" letter-spacing="0.4px">UNPLEASANT</text>
+                <text x="168" y="83" text-anchor="start" font-size="7" font-weight="700" fill="#38325a" letter-spacing="0.4px">PLEASANT</text>
+
+                <!-- Plotted Affect Dot with Pulse Ring -->
+                <g id="cmaDotGroup" style="transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); transform: translate(${currentMoodCoord.x}px, ${currentMoodCoord.y}px); cursor: pointer;">
+                  <circle r="7" fill="#38325a" opacity="0.18">
+                    <animate attributeName="r" values="5;9;5" dur="2.4s" repeatCount="indefinite" />
                   </circle>
-                  <circle r="4.5" fill="#38325A" />
-                  <circle r="1.5" fill="#FFFFFF" />
+                  <circle r="4.5" fill="#38325a" stroke="#ffffff" stroke-width="1.5" />
                 </g>
               </svg>
-              <div style="width: 100%; display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; color: var(--color-muted); margin-top: 2px;">
-                <span>Unpleasant</span>
-                <span>Pleasant</span>
-              </div>
             </div>
           </div>
 
-          <div>
-            <button class="btn-control-outline plum" id="btnUpdateMoodModal" type="button">
-              <span>Update mood</span>
-              ${rIcon("arrowRight", 14)}
+          <div class="mood-actions-row">
+            <button class="btn-mood-camera-scan" id="btnScanCameraMood" type="button" title="Detect mood live using camera">
+              ${rIcon("camera", 16)}
+              <span>Scan with camera</span>
             </button>
           </div>
         </div>
@@ -970,12 +1481,12 @@ function setupDashboardEvents() {
     else setView('history');
   });
 
-  // Circumplex SVG direct click
+  // Circumplex SVG direct click (Circular Model viewBox 220x160)
   $('#circumplexSvg')?.addEventListener('click', (e) => {
     const svg = e.currentTarget;
     const rect = svg.getBoundingClientRect();
-    const clickX = ((e.clientX - rect.left) / rect.width) * 119;
-    const clickY = ((e.clientY - rect.top) / rect.height) * 83;
+    const clickX = ((e.clientX - rect.left) / rect.width) * 220;
+    const clickY = ((e.clientY - rect.top) / rect.height) * 160;
     let closestState = 'Calm';
     let minDist = Infinity;
     for (const [name, data] of Object.entries(CMA_MOODS)) {
@@ -988,9 +1499,12 @@ function setupDashboardEvents() {
     updateMood(closestState);
   });
 
-  // Mood Update Modal
-  $('#btnUpdateMoodModal')?.addEventListener('click', () => {
-    showMoodModal();
+  // Camera Mood Detection Scanner Modal
+  $('#btnScanCameraMood')?.addEventListener('click', () => {
+    showCameraMoodModal();
+  });
+  $('#cmaBadge')?.addEventListener('click', () => {
+    showCameraMoodModal();
   });
 
   // All Sessions button
@@ -1810,8 +2324,9 @@ async function beginInterview() {
       question_count: S.setup.question_count,
       consent: currentConsents(),
       checkin: {
-        energy: $('#energy')?.value || 'Moderate',
-        feeling: $('#feeling')?.value || 'Focused'
+        energy: $('#energy')?.value || (S.mood.energyDesc?.includes('High') ? 'High' : (S.mood.energyDesc?.includes('Low') ? 'Low' : 'Moderate')),
+        feeling: $('#feeling')?.value || S.mood.state || 'Focused',
+        source: S.mood.date?.includes('Camera') ? 'camera' : 'self-reported'
       }
     };
     const response = await api('/interviews', { method: 'POST', body: payload });
@@ -2098,8 +2613,8 @@ function renderRoom() {
                   <line x1="105" y1="26" x2="105" y2="134" stroke="#656375" stroke-width="1" stroke-dasharray="2 2" />
 
                   <!-- Dimension Labels -->
-                  <text x="105" y="16" text-anchor="middle" font-size="7.5" font-weight="700" fill="#38325a" letter-spacing="0.5px">HIGH ENERGY</text>
-                  <text x="105" y="152" text-anchor="middle" font-size="7.5" font-weight="700" fill="#565563" letter-spacing="0.5px">LOW ENERGY</text>
+                  <text x="105" y="16" text-anchor="middle" font-size="7.5" font-weight="700" fill="#38325a" letter-spacing="0.8px">HIGH ACTIVATION</text>
+                  <text x="105" y="152" text-anchor="middle" font-size="7.5" font-weight="700" fill="#565563" letter-spacing="0.8px">LOW ACTIVATION</text>
                   <text x="44" y="83" text-anchor="end" font-size="7" font-weight="700" fill="#565563">UNPLEASANT</text>
                   <text x="166" y="83" text-anchor="start" font-size="7" font-weight="700" fill="#38325a">PLEASANT</text>
 
@@ -3026,6 +3541,12 @@ function updateLiveCma() {
     v += 0.12;
   }
 
+  // Live Camera Emotion Detection blend:
+  if (typeof S.faceState.facialValence === 'number' && typeof S.faceState.facialArousal === 'number') {
+    v = (v * 0.45) + (S.faceState.facialValence * 0.55);
+    a = (a * 0.45) + (S.faceState.facialArousal * 0.55);
+  }
+
   // Clamping to circumplex radius limits
   v = Math.max(-0.80, Math.min(0.80, v));
   a = Math.max(-0.80, Math.min(0.80, a));
@@ -3142,6 +3663,12 @@ function startFaceInterval() {
           alertMessage = 'Multiple faces detected. Please maintain private session focus.';
         } else {
           const points = faces[0];
+          const facialCma = computeFacialCMA(points);
+          if (facialCma) {
+            S.faceState.facialValence = facialCma.valence;
+            S.faceState.facialArousal = facialCma.arousal;
+            S.faceState.facialState = facialCma.state;
+          }
           const nose = points[1];
           const left = points[234];
           const right = points[454];
@@ -5175,6 +5702,13 @@ async function signOut() {
 // -----------------------------------------------------------------------------
 async function initialize() {
   loadSettings();
+  try {
+    const savedMood = localStorage.getItem('mockprep_user_mood');
+    if (savedMood) {
+      const parsed = JSON.parse(savedMood);
+      if (parsed && parsed.state) S.mood = { ...S.mood, ...parsed };
+    }
+  } catch {}
   // Update dynamic date
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });

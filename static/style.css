@@ -936,7 +936,8 @@ svg.nav-icon {
 
 /* Mood Check-in Card (Lavender) */
 .mood-card {
-  height: 272px;
+  min-height: 272px;
+  height: auto;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -1011,12 +1012,14 @@ svg.nav-icon {
 }
 
 .mood-chart-widget {
-  width: 120px;
-  height: 84px;
+  width: 176px;
+  height: 128px;
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 /* Recent Practice Card */
@@ -3395,4 +3398,262 @@ body.high-contrast {
   background: var(--color-border);
   outline: none;
   accent-color: var(--color-plum);
+}
+
+
+/* -----------------------------------------------------------------------------
+ * Live Camera Mood Detection (Circumplex Model of Affect) Styles
+ * ----------------------------------------------------------------------------- */
+
+.live-dot-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #10B981;
+  display: inline-block;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: livePulse 1.8s infinite;
+}
+
+@keyframes livePulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+.cam-indicator-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #10B981;
+  display: inline-block;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.mood-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-mood-camera-scan {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--color-ink);
+  color: #FFFFFF;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 12px rgba(56, 50, 90, 0.15);
+}
+
+.btn-mood-camera-scan:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(56, 50, 90, 0.22);
+  background: #2a2544;
+}
+
+.camera-mood-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(30, 26, 52, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+  animation: fadeIn 0.25s ease-out;
+}
+
+.camera-mood-modal-card {
+  background: var(--color-paper);
+  border: 1px solid var(--color-border);
+  border-radius: 24px;
+  box-shadow: 0 24px 60px rgba(44, 39, 74, 0.25);
+  width: 100%;
+  max-width: 780px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.camera-mood-modal-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--color-paper);
+}
+
+.camera-mood-modal-body {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 20px;
+  padding: 20px 24px;
+  background: var(--color-paper);
+}
+
+.cam-feed-container {
+  position: relative;
+  width: 100%;
+  height: 340px;
+  background: #141124;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cam-feed-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.cam-feed-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  transform: scaleX(-1);
+}
+
+.cam-scanner-beam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, rgba(124, 248, 196, 0.85) 50%, transparent 100%);
+  box-shadow: 0 0 12px rgba(124, 248, 196, 0.9);
+  pointer-events: none;
+  animation: scanSweep 2.4s ease-in-out infinite alternate;
+}
+
+@keyframes scanSweep {
+  0% { top: 12%; opacity: 0.3; }
+  50% { opacity: 1; }
+  100% { top: 88%; opacity: 0.3; }
+}
+
+.cam-face-oval-guide {
+  position: absolute;
+  width: 170px;
+  height: 230px;
+  border: 1.5px dashed rgba(215, 215, 244, 0.4);
+  border-radius: 50%;
+  pointer-events: none;
+  box-shadow: 0 0 20px rgba(215, 215, 244, 0.1);
+}
+
+.cam-top-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(26, 23, 44, 0.85);
+  backdrop-filter: blur(6px);
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.cam-bottom-telemetry {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
+  background: rgba(26, 23, 44, 0.85);
+  backdrop-filter: blur(6px);
+  color: #D7D7F4;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 10px;
+  display: flex;
+  justify-content: space-between;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.cam-analytics-pane {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cam-affect-card {
+  background: var(--color-wash);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  padding: 14px 16px;
+}
+
+.cam-cma-preview-box {
+  background: var(--color-paper);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.cam-meter-row {
+  margin-top: 6px;
+}
+
+.cam-meter-track {
+  width: 100%;
+  height: 8px;
+  background: #E7E5EF;
+  border-radius: 9999px;
+  overflow: hidden;
+  position: relative;
+  margin-top: 4px;
+}
+
+.cam-meter-fill {
+  height: 100%;
+  background: var(--color-plum);
+  border-radius: 9999px;
+  transition: width 0.25s ease-out;
+}
+
+.camera-mood-modal-footer {
+  padding: 14px 24px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-wash);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
